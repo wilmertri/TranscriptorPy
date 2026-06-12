@@ -1,0 +1,131 @@
+Metadata-Version: 2.4
+Name: video-transcriber-local
+Version: 0.1.0
+Summary: Aplicacion local para transcribir video o audio a TXT, PDF y DOCX.
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: faster-whisper>=1.2.1
+Requires-Dist: python-docx>=1.2.0
+Requires-Dist: reportlab>=4.4.10
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3.5; extra == "dev"
+Provides-Extra: web
+Requires-Dist: fastapi>=0.115.0; extra == "web"
+Requires-Dist: python-multipart>=0.0.12; extra == "web"
+Requires-Dist: uvicorn>=0.32.0; extra == "web"
+
+# Transcriptor local de video y audio
+
+Esta es la opcion mas rapida para construir tu app hoy: **Python + `faster-whisper`**.
+
+Por que esta opcion es la mejor para tu caso:
+
+- Ya tienes `Python 3.13` instalado.
+- `Java 8` te obligaria a una base mas lenta de montar para IA de transcripcion.
+- `faster-whisper` permite transcribir desde archivos de video o audio sin requerir `ffmpeg` instalado manualmente, porque usa `PyAV`.
+- La arquitectura del proyecto deja el nucleo listo para reutilizarlo luego en una API web.
+
+## Que hace esta version
+
+- Acepta archivos como `.mp4`, `.mov`, `.mkv`, `.avi`, `.webm`, `.mp3`, `.wav` y mas.
+- Transcribe el audio del archivo.
+- Exporta la transcripcion en:
+  - `.txt`
+  - `.pdf`
+  - `.docx`
+- Puede incluir marcas de tiempo.
+- Permite elegir idioma, modelo y carpeta de salida.
+
+## Estructura
+
+```text
+src/video_transcriber/
+  api.py
+  cli.py
+  exporters.py
+  models.py
+  transcriber.py
+  utils.py
+main.py
+tests/
+```
+
+## Instalacion
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e .[dev]
+```
+
+Notas:
+
+- En el primer uso del modelo, `faster-whisper` descargara el modelo seleccionado desde internet.
+- Si deseas mas precision, usa `--model medium` o `--model large-v3`.
+- Si priorizas velocidad en CPU, empieza con `--model base` o `--model small`.
+- En equipos sin CUDA configurado, usa `--device cpu`. Esta version ya lo toma como valor por defecto.
+
+## Uso rapido
+
+Generar solo `.txt`:
+
+```powershell
+python main.py .\mi_video.mp4
+```
+
+Generar `.txt`, `.pdf` y `.docx`:
+
+```powershell
+python main.py .\mi_video.mp4 --format txt pdf docx
+```
+
+Forzar idioma espanol e incluir tiempos:
+
+```powershell
+python main.py .\mi_video.mp4 --language es --timestamps
+```
+
+Elegir carpeta de salida:
+
+```powershell
+python main.py .\mi_video.mp4 --output-dir .\outputs
+```
+
+## Ejemplo de salida
+
+La app crea un subdirectorio por archivo procesado dentro de `outputs/`, por ejemplo:
+
+```text
+outputs/mi_video_20260425_101530/
+  transcript.txt
+  transcript.pdf
+  transcript.docx
+  transcript.json
+```
+
+## Evolucion a web
+
+La forma recomendada despues es:
+
+1. Mantener `VideoTranscriptionService` como nucleo.
+2. Agregar una API con FastAPI.
+3. Crear una UI web encima de esa API.
+
+Asi evitamos reescribir la logica principal.
+
+Ya deje un esqueleto inicial en `src/video_transcriber/api.py` para acelerar ese siguiente paso.
+
+### Cuando quieras levantar la API
+
+```powershell
+pip install -e .[web]
+uvicorn video_transcriber.api:app --reload
+```
+
+## Fuentes tecnicas usadas para la eleccion
+
+- `faster-whisper` requiere Python 3.9+ y su documentacion indica que no necesita `ffmpeg` instalado porque decodifica audio con `PyAV`: [PyPI faster-whisper](https://pypi.org/project/faster-whisper/)
+- `ctranslate2` publica wheel para `CPython 3.13` en Windows: [PyPI ctranslate2](https://pypi.org/project/ctranslate2/)
+- `python-docx` requiere Python 3.9+: [PyPI python-docx](https://pypi.org/project/python-docx/)
+- `reportlab` requiere Python 3.9+: [PyPI reportlab](https://pypi.org/project/reportlab/)
