@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "video-transcriber-local"
+version = "0.1.0"
+description = "Aplicacion local para transcribir video o audio a TXT, PDF y DOCX."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "faster-whisper>=1.2.1",
+  "python-docx>=1.2.0",
+  "reportlab>=4.4.10",
+]
+
+[project.scripts]
+video-transcriber = "video_transcriber.cli:main"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.5",
+]
+web = [
+  "fastapi>=0.115.0",
+  "python-multipart>=0.0.12",
+  "uvicorn>=0.32.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
