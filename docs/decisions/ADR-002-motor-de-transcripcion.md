@@ -46,3 +46,18 @@ comparación de opciones mostró:
   pesado y jobs antes de validar el producto. Queda como destino de migración.
 - Nube sin abstracción (descartada): más simple a corto plazo, pero amarra el
   proyecto a un proveedor y encarece la migración.
+
+## Actualización (2026-06-13) — Especificación del adaptador en la nube
+
+Tras verificar la API vigente de OpenAI:
+- Modelo: gpt-4o-mini-transcribe. Fijar un snapshot concreto del modelo y vigilar
+  la página de deprecations; el catálogo de modelos de transcripción está en
+  cambio (los retiros de "junio 2026" corresponden a Azure OpenAI, no a la API
+  directa, donde estos modelos siguen disponibles).
+- response_format: json o texto plano. gpt-4o-mini-transcribe NO soporta
+  verbose_json (exclusivo de whisper-1).
+- Consecuencia para RN-03: este modelo NO devuelve el idioma detectado (solo
+  verbose_json lo trae). Por tanto, el campo `idioma` de ResultadoTranscripcion
+  pasa a ser OPCIONAL: el adaptador en la nube lo deja en None; un futuro
+  adaptador local (faster-whisper) podrá llenarlo. RN-03 se sigue cumpliendo: no
+  se le pide el idioma al usuario y la transcripción sale en la lengua hablada.

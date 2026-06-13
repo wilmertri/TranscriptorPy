@@ -5,7 +5,11 @@ from typing import Protocol
 @dataclass
 class ResultadoTranscripcion:
     texto: str
-    idioma: str
+    idioma: str | None = None
+
+
+class ErrorTranscripcion(Exception):
+    pass
 
 
 class MotorTranscripcion(Protocol):
