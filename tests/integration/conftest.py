@@ -60,3 +60,22 @@ def archivo_no_media(tmp_path):
     ruta = tmp_path / "basura.mov"
     ruta.write_bytes(b"esto no es un archivo de media valido")
     return ruta
+
+
+@pytest.fixture
+def audio_largo(tmp_path):
+    if not _binario_disponible("ffmpeg"):
+        pytest.skip("ffmpeg no disponible en este sistema")
+    if not _binario_disponible("ffprobe"):
+        pytest.skip("ffprobe no disponible en este sistema")
+    ruta = tmp_path / "largo.wav"
+    subprocess.run(
+        [
+            "ffmpeg", "-f", "lavfi",
+            "-i", "sine=frequency=440:duration=5",
+            "-y", str(ruta),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    return ruta
