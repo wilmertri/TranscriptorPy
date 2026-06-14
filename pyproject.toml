@@ -21,6 +21,8 @@ video-transcriber = "video_transcriber.cli:main"
 [project.optional-dependencies]
 dev = [
   "pytest>=8.3.5",
+  "python-dotenv>=1.0.0",
+  "certifi",
 ]
 web = [
   "fastapi>=0.115.0",
@@ -32,6 +34,7 @@ web = [
 pythonpath = ["src"]
 markers = [
     "integration: tests que requieren binarios externos y archivos reales (ffprobe/ffmpeg)",
+    "network: tests que llaman a servicios externos de pago (OpenAI u otros); requieren OPENAI_API_KEY",
 ]
 
 [tool.setuptools]

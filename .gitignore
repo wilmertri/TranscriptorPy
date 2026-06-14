@@ -8,8 +8,10 @@ outputs/
 videos/
 *.mp4
 *.wav
+!tests/fixtures/audio_es.wav
 *.mp3
 *.m4a
 *.mov
 .env
+certs/
 .pytest_cache/
