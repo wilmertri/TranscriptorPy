@@ -4,7 +4,7 @@ from pathlib import Path
 
 from transcriptorpy.formato_archivo import es_video
 from transcriptorpy.metadata_archivo import PuertoMetadata, ErrorLecturaMetadata
-from transcriptorpy.motor_transcripcion import MotorTranscripcion, ResultadoTranscripcion
+from transcriptorpy.motor_transcripcion import MotorTranscripcion, ResultadoTranscripcion, ErrorTranscripcion
 from transcriptorpy.procesador_audio import PuertoAudio, ErrorProcesamientoAudio
 from transcriptorpy.validador_entrada import validar_entrada
 
@@ -36,7 +36,13 @@ def procesar_transcripcion(
                 puerto_audio.extraer_audio(nombre, ruta_audio)
             except ErrorProcesamientoAudio:
                 return ResultadoProcesamiento(exitoso=False, motivo="EXTRACCION")
-            resultado_motor = motor.transcribir(ruta_audio)
+            try:
+                resultado_motor = motor.transcribir(ruta_audio)
+            except ErrorTranscripcion:
+                return ResultadoProcesamiento(exitoso=False, motivo="MOTOR")
     else:
-        resultado_motor = motor.transcribir(nombre)
+        try:
+            resultado_motor = motor.transcribir(nombre)
+        except ErrorTranscripcion:
+            return ResultadoProcesamiento(exitoso=False, motivo="MOTOR")
     return ResultadoProcesamiento(exitoso=True, transcripcion=resultado_motor)
