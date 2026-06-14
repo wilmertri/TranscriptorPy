@@ -24,15 +24,19 @@ Desarrollado con un **pipeline estricto** (ver _Metodología_). Estado actual:
 | 0 | Idea informal | ✅ Cerrada |
 | 1 | Spec formal (actores, flujos, RN-01..RN-12) | ✅ Cerrada |
 | 2 | Gherkin (escenarios ejecutables) | ✅ Cerrada — trazabilidad 12/12 |
-| 3 | TDD (Red → Green → Refactor) | 🔧 En curso |
+| 3 | TDD (Red → Green → Refactor) | 🔧 Muy avanzada / en curso |
 | 4 | Arquitectura emergente | 🔧 Emergiendo de los tests |
 | 5 | Refactor continuo | ⏳ Continuo |
 
-**Avance de Fase 3:** el bloque de **validación de entrada** está completo y
-probado (formato, tamaño y duración + validador agregado con motivo de fallo).
-Siguiente paso: el **puerto del motor de transcripción** y sus adaptadores.
+**Avance de Fase 3:** núcleo de dominio **completo** y probado con dobles en
+memoria — validación de entrada (RN-05/06/07), clasificación audio/video, caso
+de uso orquestador, troceo de audios largos (decorador), manejo de errores
+(RN-11) y limpieza de temporales (RN-12). Tres adaptadores reales verificados
+contra sus sistemas: **ffprobe** (metadata), **ffmpeg** (extracción y recorte de
+audio) y **OpenAI gpt-4o-mini-transcribe** (motor, verde contra API viva).
 
-Suite de pruebas unitarias: **15 tests en verde**.
+Suite de pruebas: **44 unitarios** en verde · **7 de integración** (6 skipped
+sin ffmpeg/ffprobe en PATH) · **1 de red** (OpenAI, verde).
 
 ---
 
@@ -62,7 +66,7 @@ Suite de pruebas unitarias: **15 tests en verde**.
   prevista sin tocar el dominio. Ver `docs/decisions/ADR-002`.
 - **Extracción de audio:** ffmpeg · **Descarga de YouTube:** yt-dlp
 - **Exportadores:** `.txt` nativo, `.docx` (python-docx), `.pdf` (por confirmar)
-- **Pruebas:** pytest (unit/integration) + behave (escenarios Gherkin)
+- **Pruebas:** pytest (unit/integration/network)
 - **Persistencia:** ninguna; resultado efímero (RN-12)
 
 El stack se decidió **después** del Gherkin, según el pipeline. Detalle en
@@ -106,18 +110,34 @@ transcriptorpy/
 │   ├── descargar_transcripcion.feature
 │   └── sesion_anonima.feature
 ├── docs/decisions/            # registros de decisión de arquitectura
-│   ├── ADR-001-spike-como-referencia.md
+│   ├── ADR-001.md
 │   ├── ADR-002-motor-de-transcripcion.md
-│   └── ADR-003-stack-de-soporte.md
+│   ├── ADR-003-stack-de-soporte.md
+│   ├── ADR-004-metadata-via-ffprobe.md
+│   ├── ADR-005-formato-de-extraccion-de-audio.md
+│   └── ADR-006-troceo-como-decorador.md
 ├── src/
 │   ├── transcriptorpy/        # reconstrucción test-first (código activo)
-│   │   ├── formato_archivo.py
-│   │   ├── tamano_archivo.py
-│   │   ├── duracion_archivo.py
-│   │   └── validador_entrada.py
+│   │   ├── formato_archivo.py         # RN-05: extensiones válidas + es_video()
+│   │   ├── tamano_archivo.py          # RN-06: límite 1 GB
+│   │   ├── duracion_archivo.py        # RN-07: límite 60 min
+│   │   ├── validador_entrada.py       # validador agregado (RN-05/06/07)
+│   │   ├── metadata_archivo.py        # PuertoMetadata + MetadataFalsa
+│   │   ├── metadata_ffprobe.py        # adaptador real ffprobe
+│   │   ├── procesador_audio.py        # PuertoAudio + AudioFalso
+│   │   ├── audio_ffmpeg.py            # adaptador real ffmpeg (extraer + recortar)
+│   │   ├── motor_transcripcion.py     # Protocol + ResultadoTranscripcion + MotorFalso
+│   │   ├── motor_openai.py            # adaptador real OpenAI
+│   │   ├── fragmentacion.py           # planificar_fragmentos() (función pura)
+│   │   ├── motor_con_fragmentacion.py # decorador de troceo (ADR-006)
+│   │   └── procesar_transcripcion.py  # caso de uso orquestador
 │   └── video_transcriber/     # spike CONGELADO — solo referencia (ADR-001)
 ├── tests/
-│   └── unit/                  # tests de la reconstrucción
+│   ├── unit/                  # 44 tests — dobles en memoria, sin I/O
+│   ├── integration/           # 7 tests — ffmpeg/ffprobe + OpenAI
+│   │   └── conftest.py        # fixtures de entorno + carga de .env
+│   └── fixtures/
+│       └── audio_es.wav       # audio de referencia para test de red
 ├── pyproject.toml
 └── README.md
 ```
@@ -132,18 +152,32 @@ transcriptorpy/
 ```bash
 # 1. Entorno virtual
 python -m venv .venv
-source .venv/bin/activate        # En Windows: .venv\Scripts\activate
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # Linux/macOS
 
-# 2. Dependencias (según pyproject.toml)
-pip install -e .[dev]            # o: pip install pytest behave
+# 2. Dependencias
+pip install -e .[dev]
 
-# 3. Tests unitarios (validación de entrada — 15 en verde)
+# 3a. Tests unitarios — rápidos, sin dependencias externas (44 tests)
 pytest tests/unit -v
+
+# 3b. Tests de integración — requieren ffmpeg/ffprobe instalados en el sistema
+#     (dependencia del sistema operativo, no pip); se saltan automáticamente si faltan
+pytest -m integration -v
+
+# 3c. Tests de red — llaman a la API de OpenAI (servicio de pago)
+#     Requieren OPENAI_API_KEY definida en .env; se saltan si no hay key
+pytest -m network -v
 ```
 
-Los archivos `.feature` documentan el comportamiento esperado de cada RN. Sus
-_step definitions_ se enlazan conforme avanza la Fase 3/4, a medida que el
-comportamiento se implementa test-first.
+> **ffmpeg** es una dependencia del sistema, no de pip. Descárgalo desde
+> [ffmpeg.org](https://ffmpeg.org/download.html) y asegúrate de que esté en el PATH.
+
+Para ejecutar únicamente los tests que no requieren recursos externos:
+
+```bash
+pytest tests/unit
+```
 
 ---
 
@@ -172,6 +206,35 @@ Detalle completo en `specs/spec_formal.md`.
 
 - **ADR-001** — El código existente se congela como spike de referencia; se
   reconstruye test-first; el stack no se hereda del spike.
-- **ADR-002** — Motor de transcripción _pluggable_; adaptador en la nube en v1,
-  migración a local prevista.
-- **ADR-003** — Stack de soporte (FastAPI, Vue, ffmpeg, yt-dlp, behave/pytest).
+- **ADR-002** — Motor de transcripción _pluggable_; adaptador en la nube
+  (`gpt-4o-mini-transcribe`) en v1; campo `idioma` opcional (la API cloud no lo
+  devuelve; un adaptador local sí lo haría).
+- **ADR-003** — Stack de soporte (FastAPI, Vue, ffmpeg, yt-dlp, pytest).
+- **ADR-004** — Metadata (tamaño y duración) obtenida vía `ffprobe` subprocess
+  con salida JSON; errores mapeados a `ErrorLecturaMetadata`.
+- **ADR-005** — Audio extraído a WAV PCM mono 16 kHz; balance óptimo entre
+  calidad y tamaño de petición a la API.
+- **ADR-006** — Troceo de audios largos implementado como decorador
+  (`MotorConFragmentacion`) que envuelve cualquier `MotorTranscripcion`; el
+  dominio y el caso de uso no conocen el límite del proveedor.
+
+---
+
+## Estado / Roadmap
+
+### Hecho
+- Núcleo de dominio completo y probado (validación, orquestación, troceo,
+  manejo de errores, limpieza de temporales).
+- Adaptador **ffprobe** — metadata real (tamaño + duración).
+- Adaptador **ffmpeg** — extracción de audio y recorte de ventanas temporales.
+- Adaptador **OpenAI** — transcripción real verificada contra API viva.
+
+### Pendiente (en orden)
+1. **YouTube / yt-dlp** (RN-09) — segunda fuente de entrada; probablemente
+   detone el refactor de `procesar_transcripcion` a clase.
+2. **Composición** — ensamblar los adaptadores reales en el caso de uso
+   (conectar `AudioFfmpeg`, `MetadataFfprobe`, `MotorOpenAI` con
+   `MotorConFragmentacion`).
+3. **Exportadores** — salida en `.txt`, `.pdf` y `.docx` (RN-08).
+4. **Backend HTTP** — API con FastAPI.
+5. **Frontend** — interfaz con Vue.
