@@ -22,7 +22,9 @@ class MotorFalso:
         self._texto = texto
         self._idioma = idioma
         self.fue_llamado = False
+        self.ruta_recibida: str | None = None
 
     def transcribir(self, ruta_audio: str) -> ResultadoTranscripcion:
         self.fue_llamado = True
+        self.ruta_recibida = ruta_audio
         return ResultadoTranscripcion(texto=self._texto, idioma=self._idioma)

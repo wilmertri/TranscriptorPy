@@ -1,7 +1,11 @@
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
+from transcriptorpy.formato_archivo import es_video
 from transcriptorpy.metadata_archivo import PuertoMetadata, ErrorLecturaMetadata
 from transcriptorpy.motor_transcripcion import MotorTranscripcion, ResultadoTranscripcion
+from transcriptorpy.procesador_audio import PuertoAudio, ErrorProcesamientoAudio
 from transcriptorpy.validador_entrada import validar_entrada
 
 
@@ -15,6 +19,7 @@ class ResultadoProcesamiento:
 def procesar_transcripcion(
     motor: MotorTranscripcion,
     puerto_metadata: PuertoMetadata,
+    puerto_audio: PuertoAudio,
     nombre: str,
 ) -> ResultadoProcesamiento:
     try:
@@ -24,5 +29,14 @@ def procesar_transcripcion(
     validacion = validar_entrada(nombre, metadata.tamano_bytes, metadata.duracion_segundos)
     if not validacion.valido:
         return ResultadoProcesamiento(exitoso=False, motivo=validacion.motivo)
-    resultado_motor = motor.transcribir(nombre)
+    if es_video(nombre):
+        with tempfile.TemporaryDirectory() as directorio_temporal:
+            ruta_audio = str(Path(directorio_temporal) / "audio.wav")
+            try:
+                puerto_audio.extraer_audio(nombre, ruta_audio)
+            except ErrorProcesamientoAudio:
+                return ResultadoProcesamiento(exitoso=False, motivo="EXTRACCION")
+            resultado_motor = motor.transcribir(ruta_audio)
+    else:
+        resultado_motor = motor.transcribir(nombre)
     return ResultadoProcesamiento(exitoso=True, transcripcion=resultado_motor)

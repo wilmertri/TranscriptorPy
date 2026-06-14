@@ -1,6 +1,7 @@
 from transcriptorpy.procesar_transcripcion import procesar_transcripcion
 from transcriptorpy.motor_transcripcion import MotorFalso
 from transcriptorpy.metadata_archivo import MetadataFalsa
+from transcriptorpy.procesador_audio import AudioFalso
 
 _METADATA_VALIDA = MetadataFalsa(tamano_bytes=500 * 1024 * 1024, duracion_segundos=1800)
 
@@ -10,6 +11,7 @@ def test_entrada_valida_devuelve_resultado_exitoso():
     resultado = procesar_transcripcion(
         motor=motor,
         puerto_metadata=_METADATA_VALIDA,
+        puerto_audio=AudioFalso(),
         nombre="audio.mp3",
     )
     assert resultado.exitoso is True
@@ -22,6 +24,7 @@ def test_formato_no_soportado_devuelve_rechazo_con_motivo():
     resultado = procesar_transcripcion(
         motor=motor,
         puerto_metadata=_METADATA_VALIDA,
+        puerto_audio=AudioFalso(),
         nombre="video.avi",
     )
     assert resultado.exitoso is False
@@ -33,8 +36,49 @@ def test_motor_no_es_invocado_cuando_la_validacion_falla():
     procesar_transcripcion(
         motor=motor,
         puerto_metadata=_METADATA_VALIDA,
+        puerto_audio=AudioFalso(),
         nombre="video.avi",
     )
+    assert motor.fue_llamado is False
+
+
+def test_video_extrae_audio_y_motor_recibe_ruta_temporal():
+    motor = MotorFalso(texto="transcripción", idioma="es")
+    audio = AudioFalso()
+    procesar_transcripcion(
+        motor=motor,
+        puerto_metadata=_METADATA_VALIDA,
+        puerto_audio=audio,
+        nombre="clip.mp4",
+    )
+    assert audio.fue_llamado is True
+    assert motor.ruta_recibida != "clip.mp4"
+
+
+def test_archivo_temporal_de_video_se_elimina_al_terminar():
+    from pathlib import Path
+    motor = MotorFalso(texto="texto", idioma="es")
+    audio = AudioFalso()
+    procesar_transcripcion(
+        motor=motor,
+        puerto_metadata=_METADATA_VALIDA,
+        puerto_audio=audio,
+        nombre="clip.mp4",
+    )
+    assert audio.ruta_salida is not None
+    assert not Path(audio.ruta_salida).exists()
+
+
+def test_fallo_de_extraccion_devuelve_rechazo_extraccion_y_motor_no_llamado():
+    motor = MotorFalso(texto="texto", idioma="es")
+    resultado = procesar_transcripcion(
+        motor=motor,
+        puerto_metadata=_METADATA_VALIDA,
+        puerto_audio=AudioFalso.que_falla(),
+        nombre="clip.mp4",
+    )
+    assert resultado.exitoso is False
+    assert resultado.motivo == "EXTRACCION"
     assert motor.fue_llamado is False
 
 
@@ -43,6 +87,7 @@ def test_metadata_ilegible_devuelve_rechazo_ilegible_y_no_llama_al_motor():
     resultado = procesar_transcripcion(
         motor=motor,
         puerto_metadata=MetadataFalsa.que_falla(),
+        puerto_audio=AudioFalso(),
         nombre="audio.mp3",
     )
     assert resultado.exitoso is False
