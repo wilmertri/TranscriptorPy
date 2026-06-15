@@ -3,6 +3,7 @@ from pathlib import Path
 from transcriptorpy.procesar_transcripcion import CasoDeUsoTranscripcion
 from transcriptorpy.motor_transcripcion import MotorFalso
 from transcriptorpy.metadata_archivo import MetadataFalsa
+from transcriptorpy.motivos import MotivoRechazo
 from transcriptorpy.procesador_audio import AudioFalso
 from transcriptorpy.fuente_contenido import FuenteFalsa
 
@@ -30,7 +31,7 @@ def test_formato_no_soportado_devuelve_rechazo_con_motivo():
     motor = MotorFalso(texto="hola", idioma="es")
     resultado = _caso(motor).procesar_archivo("video.avi")
     assert resultado.exitoso is False
-    assert resultado.motivo == "FORMATO"
+    assert resultado.motivo == MotivoRechazo.FORMATO
 
 
 def test_motor_no_es_invocado_cuando_la_validacion_falla():
@@ -59,21 +60,21 @@ def test_fallo_de_extraccion_devuelve_rechazo_extraccion_y_motor_no_llamado():
     motor = MotorFalso(texto="texto", idioma="es")
     resultado = _caso(motor, audio=AudioFalso.que_falla()).procesar_archivo("clip.mp4")
     assert resultado.exitoso is False
-    assert resultado.motivo == "EXTRACCION"
+    assert resultado.motivo == MotivoRechazo.EXTRACCION
     assert motor.fue_llamado is False
 
 
 def test_fallo_del_motor_en_audio_devuelve_rechazo_motor():
     resultado = _caso(MotorFalso.que_falla()).procesar_archivo("audio.mp3")
     assert resultado.exitoso is False
-    assert resultado.motivo == "MOTOR"
+    assert resultado.motivo == MotivoRechazo.MOTOR
 
 
 def test_fallo_del_motor_en_video_devuelve_rechazo_motor_y_temporal_limpio():
     audio = AudioFalso()
     resultado = _caso(MotorFalso.que_falla(), audio=audio).procesar_archivo("clip.mp4")
     assert resultado.exitoso is False
-    assert resultado.motivo == "MOTOR"
+    assert resultado.motivo == MotivoRechazo.MOTOR
     assert audio.ruta_salida is not None
     assert not Path(audio.ruta_salida).exists()
 
@@ -82,5 +83,5 @@ def test_metadata_ilegible_devuelve_rechazo_ilegible_y_no_llama_al_motor():
     motor = MotorFalso(texto="hola", idioma="es")
     resultado = _caso(motor, metadata=MetadataFalsa.que_falla()).procesar_archivo("audio.mp3")
     assert resultado.exitoso is False
-    assert resultado.motivo == "ILEGIBLE"
+    assert resultado.motivo == MotivoRechazo.ILEGIBLE
     assert motor.fue_llamado is False

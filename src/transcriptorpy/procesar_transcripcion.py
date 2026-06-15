@@ -5,6 +5,7 @@ from pathlib import Path
 from transcriptorpy.formato_archivo import es_video
 from transcriptorpy.fuente_contenido import PuertoFuenteContenido, ErrorObtencionContenido
 from transcriptorpy.metadata_archivo import PuertoMetadata, ErrorLecturaMetadata
+from transcriptorpy.motivos import MotivoRechazo
 from transcriptorpy.motor_transcripcion import MotorTranscripcion, ResultadoTranscripcion, ErrorTranscripcion
 from transcriptorpy.procesador_audio import PuertoAudio, ErrorProcesamientoAudio
 from transcriptorpy.url_youtube import es_url_youtube
@@ -15,7 +16,7 @@ from transcriptorpy.validador_entrada import validar_entrada
 class ResultadoProcesamiento:
     exitoso: bool
     transcripcion: ResultadoTranscripcion | None = None
-    motivo: str | None = None
+    motivo: MotivoRechazo | None = None
 
 
 class CasoDeUsoTranscripcion:
@@ -36,20 +37,20 @@ class CasoDeUsoTranscripcion:
 
     def procesar_url(self, url: str) -> ResultadoProcesamiento:
         if not es_url_youtube(url):
-            return ResultadoProcesamiento(exitoso=False, motivo="URL_INVALIDA")
+            return ResultadoProcesamiento(exitoso=False, motivo=MotivoRechazo.URL_INVALIDA)
         with tempfile.TemporaryDirectory() as tmp_dir:
             destino = str(Path(tmp_dir) / "contenido.mp4")
             try:
                 self._puerto_fuente.obtener(url, destino)
             except ErrorObtencionContenido:
-                return ResultadoProcesamiento(exitoso=False, motivo="FUENTE")
+                return ResultadoProcesamiento(exitoso=False, motivo=MotivoRechazo.FUENTE)
             return self._procesar_local(destino)
 
     def _procesar_local(self, ruta: str) -> ResultadoProcesamiento:
         try:
             metadata = self._puerto_metadata.obtener_metadata(ruta)
         except ErrorLecturaMetadata:
-            return ResultadoProcesamiento(exitoso=False, motivo="ILEGIBLE")
+            return ResultadoProcesamiento(exitoso=False, motivo=MotivoRechazo.ILEGIBLE)
         validacion = validar_entrada(ruta, metadata.tamano_bytes, metadata.duracion_segundos)
         if not validacion.valido:
             return ResultadoProcesamiento(exitoso=False, motivo=validacion.motivo)
@@ -59,14 +60,14 @@ class CasoDeUsoTranscripcion:
                 try:
                     self._puerto_audio.extraer_audio(ruta, ruta_audio)
                 except ErrorProcesamientoAudio:
-                    return ResultadoProcesamiento(exitoso=False, motivo="EXTRACCION")
+                    return ResultadoProcesamiento(exitoso=False, motivo=MotivoRechazo.EXTRACCION)
                 try:
                     resultado_motor = self._motor.transcribir(ruta_audio)
                 except ErrorTranscripcion:
-                    return ResultadoProcesamiento(exitoso=False, motivo="MOTOR")
+                    return ResultadoProcesamiento(exitoso=False, motivo=MotivoRechazo.MOTOR)
         else:
             try:
                 resultado_motor = self._motor.transcribir(ruta)
             except ErrorTranscripcion:
-                return ResultadoProcesamiento(exitoso=False, motivo="MOTOR")
+                return ResultadoProcesamiento(exitoso=False, motivo=MotivoRechazo.MOTOR)
         return ResultadoProcesamiento(exitoso=True, transcripcion=resultado_motor)

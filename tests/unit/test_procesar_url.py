@@ -1,6 +1,7 @@
 from transcriptorpy.procesar_transcripcion import CasoDeUsoTranscripcion
 from transcriptorpy.motor_transcripcion import MotorFalso
 from transcriptorpy.metadata_archivo import MetadataFalsa
+from transcriptorpy.motivos import MotivoRechazo
 from transcriptorpy.procesador_audio import AudioFalso
 from transcriptorpy.fuente_contenido import FuenteFalsa
 
@@ -36,7 +37,7 @@ def test_fallo_al_obtener_contenido_devuelve_rechazo_fuente_y_motor_no_llamado()
         "https://www.youtube.com/watch?v=abc123"
     )
     assert resultado.exitoso is False
-    assert resultado.motivo == "FUENTE"
+    assert resultado.motivo == MotivoRechazo.FUENTE
     assert motor.fue_llamado is False
 
 
@@ -45,6 +46,6 @@ def test_url_no_youtube_devuelve_rechazo_url_invalida_sin_llamar_fuente_ni_motor
     motor = MotorFalso(texto="x", idioma="es")
     resultado = _caso(fuente=fuente, motor=motor).procesar_url("https://vimeo.com/12345")
     assert resultado.exitoso is False
-    assert resultado.motivo == "URL_INVALIDA"
+    assert resultado.motivo == MotivoRechazo.URL_INVALIDA
     assert fuente.fue_llamado is False
     assert motor.fue_llamado is False
