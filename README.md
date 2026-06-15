@@ -30,13 +30,16 @@ Desarrollado con un **pipeline estricto** (ver _Metodología_). Estado actual:
 
 **Avance de Fase 3:** núcleo de dominio **completo** y probado con dobles en
 memoria — validación de entrada (RN-05/06/07), clasificación audio/video, caso
-de uso orquestador, troceo de audios largos (decorador), manejo de errores
-(RN-11) y limpieza de temporales (RN-12). Tres adaptadores reales verificados
-contra sus sistemas: **ffprobe** (metadata), **ffmpeg** (extracción y recorte de
-audio) y **OpenAI gpt-4o-mini-transcribe** (motor, verde contra API viva).
+de uso orquestador (`CasoDeUsoTranscripcion`, clase con 4 puertos inyectados),
+troceo de audios largos (decorador), manejo de errores (RN-11) y limpieza de
+temporales (RN-12). Segunda fuente YouTube implementada (RN-09): validación pura
+de URL + `PuertoFuenteContenido` + adaptador `FuenteYoutubeYtdlp` (yt-dlp).
+Motivos de rechazo centralizados en `MotivoRechazo` (str+Enum cerrado). Cuatro
+adaptadores reales verificados contra sus sistemas: **ffprobe** (metadata),
+**ffmpeg** (extracción y recorte de audio), **OpenAI gpt-4o-mini-transcribe**
+(motor, verde contra API viva) y **yt-dlp** (descarga real de YouTube verificada).
 
-Suite de pruebas: **44 unitarios** en verde · **7 de integración** (6 skipped
-sin ffmpeg/ffprobe en PATH) · **1 de red** (OpenAI, verde).
+Suite de pruebas: **54 unitarios** en verde · **9 de integración** (passed) · **3 de red** (passed contra APIs vivas).
 
 ---
 
@@ -122,6 +125,7 @@ transcriptorpy/
 │   │   ├── tamano_archivo.py          # RN-06: límite 1 GB
 │   │   ├── duracion_archivo.py        # RN-07: límite 60 min
 │   │   ├── validador_entrada.py       # validador agregado (RN-05/06/07)
+│   │   ├── motivos.py                 # MotivoRechazo (str+Enum cerrado)
 │   │   ├── metadata_archivo.py        # PuertoMetadata + MetadataFalsa
 │   │   ├── metadata_ffprobe.py        # adaptador real ffprobe
 │   │   ├── procesador_audio.py        # PuertoAudio + AudioFalso
@@ -130,11 +134,14 @@ transcriptorpy/
 │   │   ├── motor_openai.py            # adaptador real OpenAI
 │   │   ├── fragmentacion.py           # planificar_fragmentos() (función pura)
 │   │   ├── motor_con_fragmentacion.py # decorador de troceo (ADR-006)
-│   │   └── procesar_transcripcion.py  # caso de uso orquestador
+│   │   ├── fuente_contenido.py        # PuertoFuenteContenido + FuenteFalsa (RN-09)
+│   │   ├── fuente_youtube_ytdlp.py    # adaptador real yt-dlp (RN-09)
+│   │   ├── url_youtube.py             # es_url_youtube() — validación pura (RN-09)
+│   │   └── procesar_transcripcion.py  # CasoDeUsoTranscripcion (clase, 4 puertos)
 │   └── video_transcriber/     # spike CONGELADO — solo referencia (ADR-001)
 ├── tests/
-│   ├── unit/                  # 44 tests — dobles en memoria, sin I/O
-│   ├── integration/           # 7 tests — ffmpeg/ffprobe + OpenAI
+│   ├── unit/                  # 54 tests — dobles en memoria, sin I/O
+│   ├── integration/           # 9 tests — ffmpeg/ffprobe + OpenAI + yt-dlp
 │   │   └── conftest.py        # fixtures de entorno + carga de .env
 │   └── fixtures/
 │       └── audio_es.wav       # audio de referencia para test de red
@@ -158,20 +165,20 @@ python -m venv .venv
 # 2. Dependencias
 pip install -e .[dev]
 
-# 3a. Tests unitarios — rápidos, sin dependencias externas (44 tests)
+# 3a. Tests unitarios — rápidos, sin dependencias externas (54 tests)
 pytest tests/unit -v
 
-# 3b. Tests de integración — requieren ffmpeg/ffprobe instalados en el sistema
-#     (dependencia del sistema operativo, no pip); se saltan automáticamente si faltan
+# 3b. Tests de integración — requieren ffmpeg/ffprobe en PATH; 9 tests
 pytest -m integration -v
 
-# 3c. Tests de red — llaman a la API de OpenAI (servicio de pago)
-#     Requieren OPENAI_API_KEY definida en .env; se saltan si no hay key
+# 3c. Tests de red — llaman a APIs externas (OpenAI y YouTube vía yt-dlp); 3 tests
+#     Requieren OPENAI_API_KEY definida en .env
 pytest -m network -v
 ```
 
 > **ffmpeg** es una dependencia del sistema, no de pip. Descárgalo desde
 > [ffmpeg.org](https://ffmpeg.org/download.html) y asegúrate de que esté en el PATH.
+> **yt-dlp** sí se instala vía pip (incluido en las dependencias del proyecto).
 
 Para ejecutar únicamente los tests que no requieren recursos externos:
 
@@ -225,16 +232,19 @@ Detalle completo en `specs/spec_formal.md`.
 ### Hecho
 - Núcleo de dominio completo y probado (validación, orquestación, troceo,
   manejo de errores, limpieza de temporales).
+- Caso de uso refactorizado a clase (`CasoDeUsoTranscripcion`) con cuatro
+  puertos inyectados; `procesar_archivo` y `procesar_url` convergen en
+  `_procesar_local` (RN-04: dos fuentes, un flujo).
+- Motivos de rechazo centralizados en `MotivoRechazo` (str+Enum cerrado).
 - Adaptador **ffprobe** — metadata real (tamaño + duración).
 - Adaptador **ffmpeg** — extracción de audio y recorte de ventanas temporales.
 - Adaptador **OpenAI** — transcripción real verificada contra API viva.
+- Adaptador **yt-dlp** — descarga real de audio de YouTube verificada (RN-09).
 
 ### Pendiente (en orden)
-1. **YouTube / yt-dlp** (RN-09) — segunda fuente de entrada; probablemente
-   detone el refactor de `procesar_transcripcion` a clase.
+1. **Exportadores** — salida en `.txt`, `.pdf` y `.docx` (RN-08).
 2. **Composición** — ensamblar los adaptadores reales en el caso de uso
-   (conectar `AudioFfmpeg`, `MetadataFfprobe`, `MotorOpenAI` con
-   `MotorConFragmentacion`).
-3. **Exportadores** — salida en `.txt`, `.pdf` y `.docx` (RN-08).
-4. **Backend HTTP** — API con FastAPI.
-5. **Frontend** — interfaz con Vue.
+   (`MetadataFfprobe`, `AudioFfmpeg`, `MotorOpenAI` con `MotorConFragmentacion`,
+   `FuenteYoutubeYtdlp`).
+3. **Backend HTTP** — API con FastAPI.
+4. **Frontend** — interfaz con Vue.

@@ -26,34 +26,39 @@ gratis, simple, sin fricción.
 - Núcleo de dominio COMPLETO y probado con dobles en memoria:
   - Validación de entrada (RN-05/06/07 + validador agregado).
   - Clasificación audio/video (es_video).
-  - Caso de uso orquestador (procesar_transcripcion): coordina metadata →
-    validar → extraer audio si es video → transcribir.
+  - Caso de uso orquestador refactorizado a clase (CasoDeUsoTranscripcion) con
+    cuatro puertos inyectados (motor, metadata, audio, fuente). procesar_archivo
+    y procesar_url convergen en _procesar_local (RN-04: dos fuentes, un flujo).
+  - Segunda fuente YouTube (RN-09): validación pura de URL (es_url_youtube) +
+    PuertoFuenteContenido + adaptador real FuenteYoutubeYtdlp (yt-dlp).
+  - Motivos de rechazo centralizados en Enum cerrado (MotivoRechazo, str+Enum):
+    FORMATO, TAMANO, DURACION, ILEGIBLE, EXTRACCION, MOTOR, URL_INVALIDA, FUENTE.
   - Troceo de audios largos (decorador MotorConFragmentacion, ADR-006).
   - Manejo de errores RN-11: metadata ilegible, extracción fallida, motor caído.
   - Limpieza de temporales RN-12: TemporaryDirectory como context manager.
-- Tres adaptadores REALES verificados contra sus sistemas externos:
-  - metadata → ffprobe (integración; skipped sin ffprobe en PATH).
-  - audio → ffmpeg: extraer_audio + recortar (integración; skipped sin ffmpeg).
+- Cuatro adaptadores REALES verificados contra sus sistemas externos:
+  - metadata → ffprobe (integración).
+  - audio → ffmpeg: extraer_audio + recortar (integración).
   - motor → OpenAI gpt-4o-mini-transcribe (network; verde contra API viva).
+  - fuente → yt-dlp: descarga real de YouTube verificada (network).
 - Campo idioma de la transcripción: opcional — la nube no lo devuelve; un futuro
   adaptador local (faster-whisper) sí lo haría.
-- Tests: 44 unitarios (passed) | 7 integración (1 passed, 6 skipped por entorno)
-  | 1 de red (passed contra API real).
+- Tests: 54 unitarios (passed) | 9 integración (passed) | 3 de red (passed).
 - Código heredado: spike funcional CONGELADO como referencia de solo lectura
   (ADR-001). No es la base de la implementación.
 
 ## Próximo paso
-Fase 3/4 — YouTube (yt-dlp, RN-09): segunda fuente de entrada, que probablemente
-detone el refactor de procesar_transcripcion de función a clase/orquestador con
-estado.
+Exportadores de salida .txt / .pdf / .docx (RN-08) — última RN de dominio sin
+implementar. Es la pieza que cierra el flujo de extremo a extremo antes del
+ensamblado final y la capa HTTP.
 
 ## Pendiente (en orden)
-1. YouTube (yt-dlp, RN-09) — segunda fuente de entrada.
+1. Exportadores de salida: .txt / .pdf / .docx (RN-08).
 2. Composición/ensamblado: conectar los adaptadores reales en el caso de uso
-   (AudioFfmpeg, MetadataFfprobe, MotorOpenAI con MotorConFragmentacion).
-3. Exportadores de salida: .txt / .pdf / .docx (RN-08).
-4. Backend HTTP con FastAPI.
-5. Frontend con Vue.
+   (MetadataFfprobe, AudioFfmpeg, MotorOpenAI con MotorConFragmentacion,
+   FuenteYoutubeYtdlp).
+3. Backend HTTP con FastAPI.
+4. Frontend con Vue.
 
 ## Alcance
 - v1: herramienta anónima de un solo uso. Entradas: archivo (audio/video) y URL
@@ -85,22 +90,26 @@ src/transcriptorpy/
 ├── duracion_archivo.py        — RN-07: límite 60 min
 ├── formato_archivo.py         — RN-05: extensiones válidas + es_video()
 ├── fragmentacion.py           — planificar_fragmentos() (función pura)
+├── fuente_contenido.py        — PuertoFuenteContenido, FuenteFalsa, ErrorObtencionContenido
+├── fuente_youtube_ytdlp.py    — adaptador real yt-dlp (FuenteYoutubeYtdlp)
 ├── metadata_archivo.py        — PuertoMetadata, MetadataFalsa, ErrorLecturaMetadata
 ├── metadata_ffprobe.py        — adaptador real ffprobe (PuertoMetadata)
 ├── motor_con_fragmentacion.py — decorador de troceo (ADR-006)
 ├── motor_openai.py            — adaptador real OpenAI (MotorTranscripcion)
 ├── motor_transcripcion.py     — Protocol + ResultadoTranscripcion + MotorFalso
+├── motivos.py                 — MotivoRechazo (str+Enum cerrado)
 ├── procesador_audio.py        — PuertoAudio, AudioFalso, ErrorProcesamientoAudio
-├── procesar_transcripcion.py  — caso de uso orquestador
+├── procesar_transcripcion.py  — CasoDeUsoTranscripcion (clase, 4 puertos inyectados)
 ├── tamano_archivo.py          — RN-06: límite 1 GB
+├── url_youtube.py             — es_url_youtube() (validación pura, RN-09)
 └── validador_entrada.py       — validador agregado (RN-05/06/07)
 
 specs/             — spec formal y RN
 features/          — Gherkin (Fase 2, implícita en tests)
 docs/decisions/    — ADR-001..ADR-006
 agents/            — prompts base
-tests/unit/        — 44 tests, dobles en memoria, sin I/O
-tests/integration/ — 7 tests (ffmpeg/ffprobe + OpenAI); marcadores integration/network
+tests/unit/        — 54 tests, dobles en memoria, sin I/O
+tests/integration/ — 9 tests (ffmpeg/ffprobe + OpenAI + yt-dlp); marcadores integration/network
 tests/fixtures/    — audio_es.wav (fixture de red)
 src/video_transcriber/ — spike CONGELADO (solo lectura, ADR-001)
 certs/             — CA bundle local (Avast Web Shield; no se versiona)
