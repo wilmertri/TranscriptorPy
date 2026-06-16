@@ -5,127 +5,268 @@ Summary: Aplicacion local para transcribir video o audio a TXT, PDF y DOCX.
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 Requires-Dist: faster-whisper>=1.2.1
+Requires-Dist: fpdf2>=2.8.0
+Requires-Dist: openai>=1.0.0
 Requires-Dist: python-docx>=1.2.0
 Requires-Dist: reportlab>=4.4.10
+Requires-Dist: yt-dlp>=2024.1.1
 Provides-Extra: dev
 Requires-Dist: pytest>=8.3.5; extra == "dev"
+Requires-Dist: pypdf>=4.0.0; extra == "dev"
+Requires-Dist: python-dotenv>=1.0.0; extra == "dev"
+Requires-Dist: certifi; extra == "dev"
 Provides-Extra: web
 Requires-Dist: fastapi>=0.115.0; extra == "web"
 Requires-Dist: python-multipart>=0.0.12; extra == "web"
 Requires-Dist: uvicorn>=0.32.0; extra == "web"
 
-# Transcriptor local de video y audio
+# TranscriptorPy
 
-Esta es la opcion mas rapida para construir tu app hoy: **Python + `faster-whisper`**.
+Transcribe audio y video a **texto corrido** para leerlo rápido, sin tener que
+verlo u oírlo completo. Gratis, simple y sin registro.
 
-Por que esta opcion es la mejor para tu caso:
+---
 
-- Ya tienes `Python 3.13` instalado.
-- `Java 8` te obligaria a una base mas lenta de montar para IA de transcripcion.
-- `faster-whisper` permite transcribir desde archivos de video o audio sin requerir `ffmpeg` instalado manualmente, porque usa `PyAV`.
-- La arquitectura del proyecto deja el nucleo listo para reutilizarlo luego en una API web.
+## El problema
 
-## Que hace esta version
+Nació de una necesidad real: transcribir la presentación de ~25 minutos de un
+video y para leerla en minutos en vez de ver completo. Las herramientas web
+disponibles eran de pago, complicadas o poco útiles. TranscriptorPy es la
+respuesta: subes un archivo (o pegas un enlace de YouTube), obtienes el texto y
+lo descargas. Nada más.
 
-- Acepta archivos como `.mp4`, `.mov`, `.mkv`, `.avi`, `.webm`, `.mp3`, `.wav` y mas.
-- Transcribe el audio del archivo.
-- Exporta la transcripcion en:
-  - `.txt`
-  - `.pdf`
-  - `.docx`
-- Puede incluir marcas de tiempo.
-- Permite elegir idioma, modelo y carpeta de salida.
+---
 
-## Estructura
+## Estado del proyecto
 
-```text
-src/video_transcriber/
-  api.py
-  cli.py
-  exporters.py
-  models.py
-  transcriber.py
-  utils.py
-main.py
-tests/
+Desarrollado con un **pipeline estricto** (ver _Metodología_). Estado actual:
+
+| Fase | Descripción | Estado |
+|------|-------------|--------|
+| 0 | Idea informal | ✅ Cerrada |
+| 1 | Spec formal (actores, flujos, RN-01..RN-12) | ✅ Cerrada |
+| 2 | Gherkin (escenarios ejecutables) | ✅ Cerrada — trazabilidad 12/12 |
+| 3 | TDD (Red → Green → Refactor) | 🔧 Muy avanzada / en curso |
+| 4 | Arquitectura emergente | 🔧 Emergiendo de los tests |
+| 5 | Refactor continuo | ⏳ Continuo |
+
+**Avance de Fase 3:** núcleo de dominio **completo** y probado con dobles en
+memoria — validación de entrada (RN-05/06/07), clasificación audio/video, caso
+de uso orquestador (`CasoDeUsoTranscripcion`, clase con 4 puertos inyectados),
+troceo de audios largos (decorador), manejo de errores (RN-11) y limpieza de
+temporales (RN-12). Segunda fuente YouTube implementada (RN-09): validación pura
+de URL + `PuertoFuenteContenido` + adaptador `FuenteYoutubeYtdlp` (yt-dlp).
+Motivos de rechazo centralizados en `MotivoRechazo` (str+Enum cerrado). Cuatro
+adaptadores reales verificados contra sus sistemas: **ffprobe** (metadata),
+**ffmpeg** (extracción y recorte de audio), **OpenAI gpt-4o-mini-transcribe**
+(motor, verde contra API viva) y **yt-dlp** (descarga real de YouTube verificada).
+
+Suite de pruebas: **54 unitarios** en verde · **9 de integración** (passed) · **3 de red** (passed contra APIs vivas).
+
+---
+
+## Alcance v1
+
+**Dentro**
+- Transcribir desde archivo subido (audio o video).
+- Transcribir desde una URL de YouTube.
+- Descargar el resultado en `.txt`, `.pdf` y `.docx`.
+- Uso anónimo y de un solo uso.
+
+**Fuera de v1 (candidatos a v2)**
+- Cuentas de usuario e historial de transcripciones.
+- Grabación en vivo desde el navegador.
+- Fuentes de URL distintas a YouTube.
+- Subtítulos, marcas de tiempo o identificación de hablantes.
+
+---
+
+## Stack
+
+- **Lenguaje:** Python
+- **Backend:** FastAPI
+- **Frontend:** Vue
+- **Motor de transcripción:** abstracción _pluggable_. v1 usa un adaptador en la
+  nube (OpenAI `gpt-4o-mini-transcribe`); migración a local (`faster-whisper`)
+  prevista sin tocar el dominio. Ver `docs/decisions/ADR-002`.
+- **Extracción de audio:** ffmpeg · **Descarga de YouTube:** yt-dlp
+- **Exportadores:** `.txt` nativo, `.docx` (python-docx), `.pdf` (por confirmar)
+- **Pruebas:** pytest (unit/integration/network)
+- **Persistencia:** ninguna; resultado efímero (RN-12)
+
+El stack se decidió **después** del Gherkin, según el pipeline. Detalle en
+`docs/decisions/ADR-003`.
+
+---
+
+## Metodología
+
+Cada paso se construye en orden, sin saltos, y con reglas que no se rompen:
+
+1. **Fase 0 — Idea informal:** el problema en lenguaje llano.
+2. **Fase 1 — Spec formal:** actores, flujos y reglas de negocio (RN).
+3. **Fase 2 — Gherkin:** cada RN expresada como escenario `Dado/Cuando/Entonces`.
+4. **Fase 3 — TDD:** Red → Green → Refactor (las tres leyes de Uncle Bob).
+5. **Fase 4 — Arquitectura emergente:** el diseño surge de los tests.
+6. **Fase 5 — Refactor continuo:** código expresivo y limpio.
+
+**Reglas innegociables**
+- Ninguna línea de código sin su test que falle primero.
+- Ninguna regla de negocio sin su escenario Gherkin.
+- Ninguna decisión de arquitectura sin su ADR.
+- Ninguna ambigüedad sin resolver antes de codificar.
+- El stack se decide después del Gherkin, nunca antes.
+
+---
+
+## Estructura del repositorio
+
+```
+transcriptorpy/
+├── CLAUDE.md                  # memoria persistente del proyecto
+├── agents/                    # prompts base de los agentes del pipeline
+│   ├── analyst_agent.md
+│   └── tdd_agent.md
+├── specs/
+│   └── spec_formal.md         # actores, flujos y RN-01..RN-12
+├── features/                  # Gherkin ejecutable (Fase 2)
+│   ├── transcribir_desde_archivo.feature
+│   ├── transcribir_desde_url.feature
+│   ├── descargar_transcripcion.feature
+│   └── sesion_anonima.feature
+├── docs/decisions/            # registros de decisión de arquitectura
+│   ├── ADR-001.md
+│   ├── ADR-002-motor-de-transcripcion.md
+│   ├── ADR-003-stack-de-soporte.md
+│   ├── ADR-004-metadata-via-ffprobe.md
+│   ├── ADR-005-formato-de-extraccion-de-audio.md
+│   └── ADR-006-troceo-como-decorador.md
+├── src/
+│   ├── transcriptorpy/        # reconstrucción test-first (código activo)
+│   │   ├── formato_archivo.py         # RN-05: extensiones válidas + es_video()
+│   │   ├── tamano_archivo.py          # RN-06: límite 1 GB
+│   │   ├── duracion_archivo.py        # RN-07: límite 60 min
+│   │   ├── validador_entrada.py       # validador agregado (RN-05/06/07)
+│   │   ├── motivos.py                 # MotivoRechazo (str+Enum cerrado)
+│   │   ├── metadata_archivo.py        # PuertoMetadata + MetadataFalsa
+│   │   ├── metadata_ffprobe.py        # adaptador real ffprobe
+│   │   ├── procesador_audio.py        # PuertoAudio + AudioFalso
+│   │   ├── audio_ffmpeg.py            # adaptador real ffmpeg (extraer + recortar)
+│   │   ├── motor_transcripcion.py     # Protocol + ResultadoTranscripcion + MotorFalso
+│   │   ├── motor_openai.py            # adaptador real OpenAI
+│   │   ├── fragmentacion.py           # planificar_fragmentos() (función pura)
+│   │   ├── motor_con_fragmentacion.py # decorador de troceo (ADR-006)
+│   │   ├── fuente_contenido.py        # PuertoFuenteContenido + FuenteFalsa (RN-09)
+│   │   ├── fuente_youtube_ytdlp.py    # adaptador real yt-dlp (RN-09)
+│   │   ├── url_youtube.py             # es_url_youtube() — validación pura (RN-09)
+│   │   └── procesar_transcripcion.py  # CasoDeUsoTranscripcion (clase, 4 puertos)
+│   └── video_transcriber/     # spike CONGELADO — solo referencia (ADR-001)
+├── tests/
+│   ├── unit/                  # 54 tests — dobles en memoria, sin I/O
+│   ├── integration/           # 9 tests — ffmpeg/ffprobe + OpenAI + yt-dlp
+│   │   └── conftest.py        # fixtures de entorno + carga de .env
+│   └── fixtures/
+│       └── audio_es.wav       # audio de referencia para test de red
+├── pyproject.toml
+└── README.md
 ```
 
-## Instalacion
+> El directorio `src/video_transcriber/` es el prototipo original, conservado
+> como referencia de solo lectura. No es la base de la implementación actual.
 
-```powershell
+---
+
+## Cómo ejecutar las pruebas
+
+```bash
+# 1. Entorno virtual
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # Linux/macOS
+
+# 2. Dependencias
 pip install -e .[dev]
+
+# 3a. Tests unitarios — rápidos, sin dependencias externas (54 tests)
+pytest tests/unit -v
+
+# 3b. Tests de integración — requieren ffmpeg/ffprobe en PATH; 9 tests
+pytest -m integration -v
+
+# 3c. Tests de red — llaman a APIs externas (OpenAI y YouTube vía yt-dlp); 3 tests
+#     Requieren OPENAI_API_KEY definida en .env
+pytest -m network -v
 ```
 
-Notas:
+> **ffmpeg** es una dependencia del sistema, no de pip. Descárgalo desde
+> [ffmpeg.org](https://ffmpeg.org/download.html) y asegúrate de que esté en el PATH.
+> **yt-dlp** sí se instala vía pip (incluido en las dependencias del proyecto).
 
-- En el primer uso del modelo, `faster-whisper` descargara el modelo seleccionado desde internet.
-- Si deseas mas precision, usa `--model medium` o `--model large-v3`.
-- Si priorizas velocidad en CPU, empieza con `--model base` o `--model small`.
-- En equipos sin CUDA configurado, usa `--device cpu`. Esta version ya lo toma como valor por defecto.
+Para ejecutar únicamente los tests que no requieren recursos externos:
 
-## Uso rapido
-
-Generar solo `.txt`:
-
-```powershell
-python main.py .\mi_video.mp4
+```bash
+pytest tests/unit
 ```
 
-Generar `.txt`, `.pdf` y `.docx`:
+---
 
-```powershell
-python main.py .\mi_video.mp4 --format txt pdf docx
-```
+## Reglas de negocio (resumen)
 
-Forzar idioma espanol e incluir tiempos:
+| RN | Descripción |
+|----|-------------|
+| RN-01 | Entregable en texto corrido; sin tiempos ni hablantes |
+| RN-02 | Uso único / anónimo; no se almacena nada |
+| RN-03 | Detección automática de idioma |
+| RN-04 | Entrada: archivo (audio/video) y URL de YouTube |
+| RN-05 | Formatos aceptados: mp3, wav, m4a, mp4, mov |
+| RN-06 | Tamaño máximo: 1 GB |
+| RN-07 | Duración máxima: 60 min |
+| RN-08 | Descarga en .txt, .pdf y .docx |
+| RN-09 | URL solo de YouTube en v1 (fuente extensible) |
+| RN-10 | Sin voz reconocible → aviso, sin archivo vacío |
+| RN-11 | Fallo o fuente inaccesible → error claro, reintentable |
+| RN-12 | Resultado disponible solo durante la sesión activa |
 
-```powershell
-python main.py .\mi_video.mp4 --language es --timestamps
-```
+Detalle completo en `specs/spec_formal.md`.
 
-Elegir carpeta de salida:
+---
 
-```powershell
-python main.py .\mi_video.mp4 --output-dir .\outputs
-```
+## Decisiones de arquitectura
 
-## Ejemplo de salida
+- **ADR-001** — El código existente se congela como spike de referencia; se
+  reconstruye test-first; el stack no se hereda del spike.
+- **ADR-002** — Motor de transcripción _pluggable_; adaptador en la nube
+  (`gpt-4o-mini-transcribe`) en v1; campo `idioma` opcional (la API cloud no lo
+  devuelve; un adaptador local sí lo haría).
+- **ADR-003** — Stack de soporte (FastAPI, Vue, ffmpeg, yt-dlp, pytest).
+- **ADR-004** — Metadata (tamaño y duración) obtenida vía `ffprobe` subprocess
+  con salida JSON; errores mapeados a `ErrorLecturaMetadata`.
+- **ADR-005** — Audio extraído a WAV PCM mono 16 kHz; balance óptimo entre
+  calidad y tamaño de petición a la API.
+- **ADR-006** — Troceo de audios largos implementado como decorador
+  (`MotorConFragmentacion`) que envuelve cualquier `MotorTranscripcion`; el
+  dominio y el caso de uso no conocen el límite del proveedor.
 
-La app crea un subdirectorio por archivo procesado dentro de `outputs/`, por ejemplo:
+---
 
-```text
-outputs/mi_video_20260425_101530/
-  transcript.txt
-  transcript.pdf
-  transcript.docx
-  transcript.json
-```
+## Estado / Roadmap
 
-## Evolucion a web
+### Hecho
+- Núcleo de dominio completo y probado (validación, orquestación, troceo,
+  manejo de errores, limpieza de temporales).
+- Caso de uso refactorizado a clase (`CasoDeUsoTranscripcion`) con cuatro
+  puertos inyectados; `procesar_archivo` y `procesar_url` convergen en
+  `_procesar_local` (RN-04: dos fuentes, un flujo).
+- Motivos de rechazo centralizados en `MotivoRechazo` (str+Enum cerrado).
+- Adaptador **ffprobe** — metadata real (tamaño + duración).
+- Adaptador **ffmpeg** — extracción de audio y recorte de ventanas temporales.
+- Adaptador **OpenAI** — transcripción real verificada contra API viva.
+- Adaptador **yt-dlp** — descarga real de audio de YouTube verificada (RN-09).
 
-La forma recomendada despues es:
-
-1. Mantener `VideoTranscriptionService` como nucleo.
-2. Agregar una API con FastAPI.
-3. Crear una UI web encima de esa API.
-
-Asi evitamos reescribir la logica principal.
-
-Ya deje un esqueleto inicial en `src/video_transcriber/api.py` para acelerar ese siguiente paso.
-
-### Cuando quieras levantar la API
-
-```powershell
-pip install -e .[web]
-uvicorn video_transcriber.api:app --reload
-```
-
-## Fuentes tecnicas usadas para la eleccion
-
-- `faster-whisper` requiere Python 3.9+ y su documentacion indica que no necesita `ffmpeg` instalado porque decodifica audio con `PyAV`: [PyPI faster-whisper](https://pypi.org/project/faster-whisper/)
-- `ctranslate2` publica wheel para `CPython 3.13` en Windows: [PyPI ctranslate2](https://pypi.org/project/ctranslate2/)
-- `python-docx` requiere Python 3.9+: [PyPI python-docx](https://pypi.org/project/python-docx/)
-- `reportlab` requiere Python 3.9+: [PyPI reportlab](https://pypi.org/project/reportlab/)
+### Pendiente (en orden)
+1. **Exportadores** — salida en `.txt`, `.pdf` y `.docx` (RN-08).
+2. **Composición** — ensamblar los adaptadores reales en el caso de uso
+   (`MetadataFfprobe`, `AudioFfmpeg`, `MotorOpenAI` con `MotorConFragmentacion`,
+   `FuenteYoutubeYtdlp`).
+3. **Backend HTTP** — API con FastAPI.
+4. **Frontend** — interfaz con Vue.

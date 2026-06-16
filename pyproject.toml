@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "faster-whisper>=1.2.1",
+  "fpdf2>=2.8.0",
   "openai>=1.0.0",
   "python-docx>=1.2.0",
   "reportlab>=4.4.10",
@@ -22,6 +23,7 @@ video-transcriber = "video_transcriber.cli:main"
 [project.optional-dependencies]
 dev = [
   "pytest>=8.3.5",
+  "pypdf>=4.0.0",
   "python-dotenv>=1.0.0",
   "certifi",
 ]
@@ -43,3 +45,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"transcriptorpy.assets" = ["*.ttf"]

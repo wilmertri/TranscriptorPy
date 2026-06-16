@@ -36,6 +36,20 @@ gratis, simple, sin fricción.
   - Troceo de audios largos (decorador MotorConFragmentacion, ADR-006).
   - Manejo de errores RN-11: metadata ilegible, extracción fallida, motor caído.
   - Limpieza de temporales RN-12: TemporaryDirectory como context manager.
+  - Exportadores de salida (RN-08): .txt nativo (ExportadorTxt), .docx con
+    python-docx (ExportadorDocx), .pdf con fpdf2 + fuente DejaVu Sans Unicode
+    embebida (ExportadorPdf, ADR-007). La exportación vive FUERA del caso de
+    uso: CasoDeUsoTranscripcion produce texto; quien orquesta llama luego a
+    seleccionar_exportador(FormatoSalida) (ADR-008).
+  - Selector de exportador por formato: FormatoSalida (str+Enum cerrado con
+    TXT/PDF/DOCX), Protocol Exportador y seleccionar_exportador(formato) en
+    exportador.py. Test de exhaustividad garantiza que cualquier miembro nuevo
+    del Enum falle en rojo si no se cablea.
+  - Factory de composición (composicion.py): construir_caso_de_uso(config:
+    ConfigTranscripcion) → CasoDeUsoTranscripcion. Ensambla MetadataFfprobe y
+    AudioFfmpeg una sola vez y los pasa tanto a MotorConFragmentacion (que los
+    necesita para troceo) como al caso de uso — mismas instancias. Config
+    explícita (dataclass frozen, openai_api_key); no lee entorno por dentro.
 - Cuatro adaptadores REALES verificados contra sus sistemas externos:
   - metadata → ffprobe (integración).
   - audio → ffmpeg: extraer_audio + recortar (integración).
@@ -43,22 +57,19 @@ gratis, simple, sin fricción.
   - fuente → yt-dlp: descarga real de YouTube verificada (network).
 - Campo idioma de la transcripción: opcional — la nube no lo devuelve; un futuro
   adaptador local (faster-whisper) sí lo haría.
-- Tests: 54 unitarios (passed) | 9 integración (passed) | 3 de red (passed).
+- Tests: 68 unitarios (passed) | 9 integración (passed) | 3 de red (passed).
 - Código heredado: spike funcional CONGELADO como referencia de solo lectura
   (ADR-001). No es la base de la implementación.
 
 ## Próximo paso
-Exportadores de salida .txt / .pdf / .docx (RN-08) — última RN de dominio sin
-implementar. Es la pieza que cierra el flujo de extremo a extremo antes del
-ensamblado final y la capa HTTP.
+Backend HTTP con FastAPI. La composición ya está resuelta; lo que falta en esa
+capa: leer OPENAI_API_KEY del entorno para construir ConfigTranscripcion,
+orquestar transcripción → exportación (caso de uso produce texto; endpoint
+selecciona formato con seleccionar_exportador y devuelve los bytes al cliente).
 
 ## Pendiente (en orden)
-1. Exportadores de salida: .txt / .pdf / .docx (RN-08).
-2. Composición/ensamblado: conectar los adaptadores reales en el caso de uso
-   (MetadataFfprobe, AudioFfmpeg, MotorOpenAI con MotorConFragmentacion,
-   FuenteYoutubeYtdlp).
-3. Backend HTTP con FastAPI.
-4. Frontend con Vue.
+1. Backend HTTP con FastAPI.
+2. Frontend con Vue.
 
 ## Alcance
 - v1: herramienta anónima de un solo uso. Entradas: archivo (audio/video) y URL
@@ -77,6 +88,11 @@ Todas en docs/decisions/:
 - ADR-005: audio extraído a WAV PCM mono 16 kHz (balance calidad / tamaño para API).
 - ADR-006: troceo de audios largos como decorador (MotorConFragmentacion) que
   envuelve cualquier MotorTranscripcion; dominio y caso de uso intactos.
+- ADR-007: exportador PDF usa fpdf2 con fuente TrueType Unicode (DejaVu Sans)
+  embebida en el paquete; pypdf solo en dev para verificar en tests.
+- ADR-008: exportación FUERA del caso de uso; factory pura (composicion.py) con
+  config explícita; reúso de instancias de metadata y audio; test de estructura
+  valida el grafo sin I/O; humo de extremo a extremo diferido a la capa HTTP.
 
 ## Agentes
 - agents/analyst_agent.md — escucha y estructura; no propone tecnología.
@@ -97,6 +113,11 @@ src/transcriptorpy/
 ├── motor_con_fragmentacion.py — decorador de troceo (ADR-006)
 ├── motor_openai.py            — adaptador real OpenAI (MotorTranscripcion)
 ├── motor_transcripcion.py     — Protocol + ResultadoTranscripcion + MotorFalso
+├── assets/
+│   └── DejaVuSans.ttf         — fuente Unicode embebida para ExportadorPdf
+├── composicion.py             — ConfigTranscripcion + construir_caso_de_uso() (ADR-008)
+├── exportador.py              — Exportador (Protocol), FormatoSalida (str+Enum),
+│                                seleccionar_exportador(), ExportadorTxt/Docx/Pdf (RN-08)
 ├── motivos.py                 — MotivoRechazo (str+Enum cerrado)
 ├── procesador_audio.py        — PuertoAudio, AudioFalso, ErrorProcesamientoAudio
 ├── procesar_transcripcion.py  — CasoDeUsoTranscripcion (clase, 4 puertos inyectados)
@@ -106,9 +127,9 @@ src/transcriptorpy/
 
 specs/             — spec formal y RN
 features/          — Gherkin (Fase 2, implícita en tests)
-docs/decisions/    — ADR-001..ADR-006
+docs/decisions/    — ADR-001..ADR-008
 agents/            — prompts base
-tests/unit/        — 54 tests, dobles en memoria, sin I/O
+tests/unit/        — 68 tests, dobles en memoria, sin I/O
 tests/integration/ — 9 tests (ffmpeg/ffprobe + OpenAI + yt-dlp); marcadores integration/network
 tests/fixtures/    — audio_es.wav (fixture de red)
 src/video_transcriber/ — spike CONGELADO (solo lectura, ADR-001)

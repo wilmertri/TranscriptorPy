@@ -1,9 +1,15 @@
 faster-whisper>=1.2.1
+fpdf2>=2.8.0
+openai>=1.0.0
 python-docx>=1.2.0
 reportlab>=4.4.10
+yt-dlp>=2024.1.1
 
 [dev]
 pytest>=8.3.5
+pypdf>=4.0.0
+python-dotenv>=1.0.0
+certifi
 
 [web]
 fastapi>=0.115.0
