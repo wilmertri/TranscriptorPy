@@ -2,6 +2,8 @@ README.md
 pyproject.toml
 src/transcriptorpy/__init__.py
 src/transcriptorpy/audio_ffmpeg.py
+src/transcriptorpy/composicion.py
+src/transcriptorpy/config.py
 src/transcriptorpy/duracion_archivo.py
 src/transcriptorpy/exportador.py
 src/transcriptorpy/formato_archivo.py
@@ -19,6 +21,8 @@ src/transcriptorpy/procesar_transcripcion.py
 src/transcriptorpy/tamano_archivo.py
 src/transcriptorpy/url_youtube.py
 src/transcriptorpy/validador_entrada.py
+src/transcriptorpy/assets/DejaVuSans.ttf
+src/transcriptorpy/assets/__init__.py
 src/video_transcriber/__init__.py
 src/video_transcriber/api.py
 src/video_transcriber/cli.py

@@ -10,3 +10,4 @@ class MotivoRechazo(str, Enum):
     MOTOR = "MOTOR"
     URL_INVALIDA = "URL_INVALIDA"
     FUENTE = "FUENTE"
+    SIN_VOZ = "SIN_VOZ"

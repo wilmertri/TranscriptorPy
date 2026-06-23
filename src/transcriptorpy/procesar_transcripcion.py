@@ -70,4 +70,6 @@ class CasoDeUsoTranscripcion:
                 resultado_motor = self._motor.transcribir(ruta)
             except ErrorTranscripcion:
                 return ResultadoProcesamiento(exitoso=False, motivo=MotivoRechazo.MOTOR)
+        if not resultado_motor.texto.strip():
+            return ResultadoProcesamiento(exitoso=False, motivo=MotivoRechazo.SIN_VOZ)
         return ResultadoProcesamiento(exitoso=True, transcripcion=resultado_motor)

@@ -1,7 +1,7 @@
 from enum import Enum
 from importlib.resources import files
 from io import BytesIO
-from typing import Protocol
+from typing import NamedTuple, Protocol
 
 from docx import Document
 from fpdf import FPDF
@@ -51,3 +51,22 @@ _MAPA: dict[FormatoSalida, type[Exportador]] = {
 
 def seleccionar_exportador(formato: FormatoSalida) -> Exportador:
     return _MAPA[formato]()
+
+
+class MetadatosFormato(NamedTuple):
+    media_type: str
+    extension: str
+
+
+_MAPA_METADATOS: dict[FormatoSalida, MetadatosFormato] = {
+    FormatoSalida.TXT: MetadatosFormato(media_type="text/plain", extension="txt"),
+    FormatoSalida.PDF: MetadatosFormato(media_type="application/pdf", extension="pdf"),
+    FormatoSalida.DOCX: MetadatosFormato(
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        extension="docx",
+    ),
+}
+
+
+def metadatos_formato(formato: FormatoSalida) -> MetadatosFormato:
+    return _MAPA_METADATOS[formato]

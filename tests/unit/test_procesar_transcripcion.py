@@ -85,3 +85,11 @@ def test_metadata_ilegible_devuelve_rechazo_ilegible_y_no_llama_al_motor():
     assert resultado.exitoso is False
     assert resultado.motivo == MotivoRechazo.ILEGIBLE
     assert motor.fue_llamado is False
+
+
+def test_motor_devuelve_texto_sin_voz_reconocible_resulta_en_rechazo_sin_voz():
+    motor = MotorFalso(texto="   ", idioma=None)
+    resultado = _caso(motor).procesar_archivo("audio.mp3")
+    assert resultado.exitoso is False
+    assert resultado.motivo == MotivoRechazo.SIN_VOZ
+    assert resultado.transcripcion is None

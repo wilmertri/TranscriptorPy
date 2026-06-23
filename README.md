@@ -34,20 +34,26 @@ de uso orquestador (`CasoDeUsoTranscripcion`, clase con 4 puertos inyectados),
 troceo de audios largos (decorador), manejo de errores (RN-11) y limpieza de
 temporales (RN-12). Segunda fuente YouTube implementada (RN-09): validación pura
 de URL + `PuertoFuenteContenido` + adaptador `FuenteYoutubeYtdlp` (yt-dlp).
-Motivos de rechazo centralizados en `MotivoRechazo` (str+Enum cerrado). Cuatro
+Motivos de rechazo centralizados en `MotivoRechazo` (str+Enum cerrado, incluye `SIN_VOZ`: el caso de uso detecta texto vacío tras `strip()` y devuelve rechazo sin abrir archivo, cubriendo RN-10). Cuatro
 adaptadores reales verificados contra sus sistemas: **ffprobe** (metadata),
 **ffmpeg** (extracción y recorte de audio), **OpenAI gpt-4o-mini-transcribe**
 (motor, verde contra API viva) y **yt-dlp** (descarga real de YouTube verificada).
 Exportadores de salida implementados (RN-08): `.txt` nativo, `.docx` con
 python-docx y `.pdf` con fpdf2 + fuente DejaVu Sans Unicode embebida (ADR-007).
 Selector de exportador por formato (`FormatoSalida` str+Enum, `Protocol Exportador`,
-`seleccionar_exportador`). Factory de composición (`composicion.py`):
+`seleccionar_exportador`, `metadatos_formato`/`MetadatosFormato`). Factory de composición (`composicion.py`):
 `construir_caso_de_uso(ConfigTranscripcion)` ensambla los cuatro adaptadores
 reales con `MotorOpenAI` envuelto en `MotorConFragmentacion`, reusando las
-mismas instancias de metadata y audio (ADR-008). La exportación vive fuera del
-caso de uso; lo pendiente es la capa HTTP y el frontend.
+mismas instancias de metadata y audio (ADR-008). **Capa HTTP en curso:**
+`config.py` lee `OPENAI_API_KEY` en la frontera del sistema (`cargar_config_desde_entorno`,
+`ErrorConfiguracion`); `api.py` implementa el endpoint `POST /transcripciones`
+con entrada multipart (archivo o URL), validación de fuente única, formato con
+default `txt`, respuesta binaria con `Content-Disposition` en éxito y JSON
+`{tipo, motivo, mensaje}` en error/aviso, y mapeo completo de `MotivoRechazo`
+a status HTTP (ADR-009/010). Los 17 tests del handler fueron ratificados por
+verificación de mutación.
 
-Suite de pruebas: **68 unitarios** en verde · **9 de integración** (passed) · **3 de red** (passed contra APIs vivas).
+Suite de pruebas: **94 unitarios** en verde · **9 de integración** (passed) · **3 de red** (passed contra APIs vivas).
 
 ---
 
@@ -128,7 +134,9 @@ transcriptorpy/
 │   ├── ADR-005-formato-de-extraccion-de-audio.md
 │   ├── ADR-006-troceo-como-decorador.md
 │   ├── ADR-007-libreria-de-pdf.md
-│   └── ADR-008-composicion.md
+│   ├── ADR-008-composicion.md
+│   ├── ADR-009-diseno-de-la-api-http.md
+│   └── ADR-010-mapeo-de-errores-http.md
 ├── src/
 │   ├── transcriptorpy/        # reconstrucción test-first (código activo)
 │   │   ├── formato_archivo.py         # RN-05: extensiones válidas + es_video()
@@ -148,14 +156,17 @@ transcriptorpy/
 │   │   ├── fuente_youtube_ytdlp.py    # adaptador real yt-dlp (RN-09)
 │   │   ├── url_youtube.py             # es_url_youtube() — validación pura (RN-09)
 │   │   ├── exportador.py              # Exportador (Protocol), FormatoSalida, seleccionar_exportador(),
-│   │   │                              # ExportadorTxt, ExportadorDocx, ExportadorPdf (RN-08)
+│   │   │                              # ExportadorTxt, ExportadorDocx, ExportadorPdf (RN-08),
+│   │   │                              # MetadatosFormato (NamedTuple), metadatos_formato()
 │   │   ├── assets/
 │   │   │   └── DejaVuSans.ttf         # fuente Unicode embebida para ExportadorPdf
 │   │   ├── composicion.py             # ConfigTranscripcion + construir_caso_de_uso() (ADR-008)
+│   │   ├── config.py                  # cargar_config_desde_entorno() + ErrorConfiguracion
+│   │   ├── api.py                     # FastAPI app, POST /transcripciones (ADR-009/010)
 │   │   └── procesar_transcripcion.py  # CasoDeUsoTranscripcion (clase, 4 puertos)
 │   └── video_transcriber/     # spike CONGELADO — solo referencia (ADR-001)
 ├── tests/
-│   ├── unit/                  # 68 tests — dobles en memoria, sin I/O
+│   ├── unit/                  # 94 tests — dobles en memoria, sin I/O
 │   ├── integration/           # 9 tests — ffmpeg/ffprobe + OpenAI + yt-dlp
 │   │   └── conftest.py        # fixtures de entorno + carga de .env
 │   └── fixtures/
@@ -180,7 +191,7 @@ python -m venv .venv
 # 2. Dependencias
 pip install -e .[dev]
 
-# 3a. Tests unitarios — rápidos, sin dependencias externas (68 tests)
+# 3a. Tests unitarios — rápidos, sin dependencias externas (94 tests)
 pytest tests/unit -v
 
 # 3b. Tests de integración — requieren ffmpeg/ffprobe en PATH; 9 tests
@@ -247,6 +258,13 @@ Detalle completo en `specs/spec_formal.md`.
   independiente de FastAPI; config explícita (no lee entorno por dentro);
   `MetadataFfprobe` y `AudioFfmpeg` construidos una sola vez y compartidos entre
   `MotorConFragmentacion` y el caso de uso.
+- **ADR-009** — Diseño del endpoint `POST /transcripciones`: entrada multipart,
+  validación de exactamente una fuente, parámetro `formato` con default `txt`,
+  respuesta binaria con `Content-Disposition` en éxito, JSON `{tipo, motivo, mensaje}`
+  en error/aviso.
+- **ADR-010** — Mapeo de `MotivoRechazo` a status HTTP: `FORMATO`→415,
+  `TAMANO`→413, `MOTOR`/`FUENTE`→502, resto→422; `SIN_VOZ` devuelve 422 con
+  `tipo: "aviso"` para distinguirlo semánticamente de un error.
 
 ---
 
@@ -271,7 +289,12 @@ Detalle completo en `specs/spec_formal.md`.
   `composicion.py`; instancias de metadata y audio compartidas; factory testeable
   sin entorno ni red.
 
+### En curso
+- **Backend HTTP** — endpoint `POST /transcripciones` implementado (`config.py`
+  + `api.py`); 17 tests del handler en verde y ratificados por verificación de
+  mutación. Pendiente: manejador global de excepciones → 500 con esquema JSON;
+  humo end-to-end con composición real; hardening de nombre de archivo.
+
 ### Pendiente (en orden)
-1. **Backend HTTP** — API con FastAPI; orquestación transcripción → exportación;
-   lectura de `OPENAI_API_KEY` del entorno para construir `ConfigTranscripcion`.
+1. **Capa HTTP — completar:** manejador 500 global, humo e2e, hardening.
 2. **Frontend** — interfaz con Vue.

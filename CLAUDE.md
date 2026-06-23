@@ -32,7 +32,9 @@ gratis, simple, sin fricción.
   - Segunda fuente YouTube (RN-09): validación pura de URL (es_url_youtube) +
     PuertoFuenteContenido + adaptador real FuenteYoutubeYtdlp (yt-dlp).
   - Motivos de rechazo centralizados en Enum cerrado (MotivoRechazo, str+Enum):
-    FORMATO, TAMANO, DURACION, ILEGIBLE, EXTRACCION, MOTOR, URL_INVALIDA, FUENTE.
+    FORMATO, TAMANO, DURACION, ILEGIBLE, EXTRACCION, MOTOR, URL_INVALIDA, FUENTE,
+    SIN_VOZ. El caso de uso detecta texto vacío tras strip() y devuelve
+    ResultadoProcesamiento(exitoso=False, motivo=MotivoRechazo.SIN_VOZ), cubriendo RN-10.
   - Troceo de audios largos (decorador MotorConFragmentacion, ADR-006).
   - Manejo de errores RN-11: metadata ilegible, extracción fallida, motor caído.
   - Limpieza de temporales RN-12: TemporaryDirectory como context manager.
@@ -44,12 +46,30 @@ gratis, simple, sin fricción.
   - Selector de exportador por formato: FormatoSalida (str+Enum cerrado con
     TXT/PDF/DOCX), Protocol Exportador y seleccionar_exportador(formato) en
     exportador.py. Test de exhaustividad garantiza que cualquier miembro nuevo
-    del Enum falle en rojo si no se cablea.
+    del Enum falle en rojo si no se cablea. Función auxiliar
+    metadatos_formato(FormatoSalida) → MetadatosFormato(media_type, extension)
+    (NamedTuple), con su propia guardia de exhaustividad; usada por la capa HTTP.
   - Factory de composición (composicion.py): construir_caso_de_uso(config:
     ConfigTranscripcion) → CasoDeUsoTranscripcion. Ensambla MetadataFfprobe y
     AudioFfmpeg una sola vez y los pasa tanto a MotorConFragmentacion (que los
     necesita para troceo) como al caso de uso — mismas instancias. Config
     explícita (dataclass frozen, openai_api_key); no lee entorno por dentro.
+- Capa HTTP abierta con FastAPI:
+  - config.py: cargar_config_desde_entorno() lee OPENAI_API_KEY en la frontera
+    del sistema; lanza ErrorConfiguracion si falta o está vacía. Respeta la
+    pureza de la factory (ADR-008): la lectura del entorno ocurre aquí, fuera
+    de composicion.py.
+  - api.py: endpoint POST /transcripciones. Entrada multipart con archivo o URL
+    de YouTube (validación de exactamente una fuente → 422 FUENTE_AUSENTE si
+    ninguna o ambas). Parámetro formato con default txt; 422
+    FORMATO_SALIDA_INVALIDO para valor desconocido. Respuesta polimórfica: bytes
+    con Content-Type y Content-Disposition attachment (nombre fijo
+    transcripcion.extensión) en éxito; JSON {tipo, motivo, mensaje} en error o
+    aviso. Mapeo completo MotivoRechazo → status HTTP según ADR-010; SIN_VOZ
+    devuelve 422 con tipo aviso (distinción semántica para el cliente).
+  - 17 tests del handler (test_api.py) ratificados por verificación de
+    mutación: cada test falla por la razón correcta al remover su pieza de
+    producción. Sin discrepancias.
 - Cuatro adaptadores REALES verificados contra sus sistemas externos:
   - metadata → ffprobe (integración).
   - audio → ffmpeg: extraer_audio + recortar (integración).
@@ -57,19 +77,23 @@ gratis, simple, sin fricción.
   - fuente → yt-dlp: descarga real de YouTube verificada (network).
 - Campo idioma de la transcripción: opcional — la nube no lo devuelve; un futuro
   adaptador local (faster-whisper) sí lo haría.
-- Tests: 68 unitarios (passed) | 9 integración (passed) | 3 de red (passed).
+- Tests: 94 unitarios (passed) | 9 integración (passed) | 3 de red (passed).
 - Código heredado: spike funcional CONGELADO como referencia de solo lectura
   (ADR-001). No es la base de la implementación.
 
 ## Próximo paso
-Backend HTTP con FastAPI. La composición ya está resuelta; lo que falta en esa
-capa: leer OPENAI_API_KEY del entorno para construir ConfigTranscripcion,
-orquestar transcripción → exportación (caso de uso produce texto; endpoint
-selecciona formato con seleccionar_exportador y devuelve los bytes al cliente).
+Completar la capa HTTP. La pieza ausente más urgente es el manejador global de
+excepciones inesperadas que devuelve 500 con el esquema JSON {tipo, motivo,
+mensaje} (hoy ausente: una excepción no controlada se propaga sin ese esquema).
+Luego: humo end-to-end con la composición real montada en FastAPI (el diferido
+de ADR-008). Dos tareas de hardening pendientes: saneo del nombre de archivo
+subido contra path traversal; y decidir si la persistencia del upload a un
+temporal con nombre original merece nota en un ADR.
 
 ## Pendiente (en orden)
-1. Backend HTTP con FastAPI.
-2. Frontend con Vue.
+1. **Capa HTTP — completar:** manejador 500 global (TDD estricto, rojo primero);
+   luego humo e2e con composición real; hardening de nombre de archivo.
+2. **Frontend con Vue.**
 
 ## Alcance
 - v1: herramienta anónima de un solo uso. Entradas: archivo (audio/video) y URL
@@ -93,6 +117,10 @@ Todas en docs/decisions/:
 - ADR-008: exportación FUERA del caso de uso; factory pura (composicion.py) con
   config explícita; reúso de instancias de metadata y audio; test de estructura
   valida el grafo sin I/O; humo de extremo a extremo diferido a la capa HTTP.
+- ADR-009: diseño del endpoint POST /transcripciones — entrada multipart, validación
+  de fuente única, parámetro formato con default txt, respuesta binaria vs JSON.
+- ADR-010: mapeo de MotivoRechazo a status HTTP — FORMATO→415, TAMANO→413,
+  MOTOR/FUENTE→502, resto→422; SIN_VOZ como 422 con tipo aviso.
 
 ## Agentes
 - agents/analyst_agent.md — escucha y estructura; no propone tecnología.
@@ -117,7 +145,11 @@ src/transcriptorpy/
 │   └── DejaVuSans.ttf         — fuente Unicode embebida para ExportadorPdf
 ├── composicion.py             — ConfigTranscripcion + construir_caso_de_uso() (ADR-008)
 ├── exportador.py              — Exportador (Protocol), FormatoSalida (str+Enum),
-│                                seleccionar_exportador(), ExportadorTxt/Docx/Pdf (RN-08)
+│                                seleccionar_exportador(), ExportadorTxt/Docx/Pdf (RN-08),
+│                                MetadatosFormato (NamedTuple), metadatos_formato()
+├── config.py                  — cargar_config_desde_entorno() + ErrorConfiguracion
+│                                (frontera: lee OPENAI_API_KEY del entorno)
+├── api.py                     — FastAPI app, endpoint POST /transcripciones (ADR-009/010)
 ├── motivos.py                 — MotivoRechazo (str+Enum cerrado)
 ├── procesador_audio.py        — PuertoAudio, AudioFalso, ErrorProcesamientoAudio
 ├── procesar_transcripcion.py  — CasoDeUsoTranscripcion (clase, 4 puertos inyectados)
@@ -127,9 +159,9 @@ src/transcriptorpy/
 
 specs/             — spec formal y RN
 features/          — Gherkin (Fase 2, implícita en tests)
-docs/decisions/    — ADR-001..ADR-008
+docs/decisions/    — ADR-001..ADR-010
 agents/            — prompts base
-tests/unit/        — 68 tests, dobles en memoria, sin I/O
+tests/unit/        — 94 tests, dobles en memoria, sin I/O
 tests/integration/ — 9 tests (ffmpeg/ffprobe + OpenAI + yt-dlp); marcadores integration/network
 tests/fixtures/    — audio_es.wav (fixture de red)
 src/video_transcriber/ — spike CONGELADO (solo lectura, ADR-001)

@@ -56,12 +56,20 @@ de uso orquestador (`CasoDeUsoTranscripcion`, clase con 4 puertos inyectados),
 troceo de audios largos (decorador), manejo de errores (RN-11) y limpieza de
 temporales (RN-12). Segunda fuente YouTube implementada (RN-09): validación pura
 de URL + `PuertoFuenteContenido` + adaptador `FuenteYoutubeYtdlp` (yt-dlp).
-Motivos de rechazo centralizados en `MotivoRechazo` (str+Enum cerrado). Cuatro
+Motivos de rechazo centralizados en `MotivoRechazo` (str+Enum cerrado, incluye `SIN_VOZ`: el caso de uso detecta texto vacío tras `strip()` y devuelve rechazo sin abrir archivo, cubriendo RN-10). Cuatro
 adaptadores reales verificados contra sus sistemas: **ffprobe** (metadata),
 **ffmpeg** (extracción y recorte de audio), **OpenAI gpt-4o-mini-transcribe**
 (motor, verde contra API viva) y **yt-dlp** (descarga real de YouTube verificada).
+Exportadores de salida implementados (RN-08): `.txt` nativo, `.docx` con
+python-docx y `.pdf` con fpdf2 + fuente DejaVu Sans Unicode embebida (ADR-007).
+Selector de exportador por formato (`FormatoSalida` str+Enum, `Protocol Exportador`,
+`seleccionar_exportador`). Factory de composición (`composicion.py`):
+`construir_caso_de_uso(ConfigTranscripcion)` ensambla los cuatro adaptadores
+reales con `MotorOpenAI` envuelto en `MotorConFragmentacion`, reusando las
+mismas instancias de metadata y audio (ADR-008). La exportación vive fuera del
+caso de uso; lo pendiente es la capa HTTP y el frontend.
 
-Suite de pruebas: **54 unitarios** en verde · **9 de integración** (passed) · **3 de red** (passed contra APIs vivas).
+Suite de pruebas: **69 unitarios** en verde · **9 de integración** (passed) · **3 de red** (passed contra APIs vivas).
 
 ---
 
@@ -90,7 +98,7 @@ Suite de pruebas: **54 unitarios** en verde · **9 de integración** (passed) ·
   nube (OpenAI `gpt-4o-mini-transcribe`); migración a local (`faster-whisper`)
   prevista sin tocar el dominio. Ver `docs/decisions/ADR-002`.
 - **Extracción de audio:** ffmpeg · **Descarga de YouTube:** yt-dlp
-- **Exportadores:** `.txt` nativo, `.docx` (python-docx), `.pdf` (por confirmar)
+- **Exportadores:** `.txt` nativo, `.docx` (python-docx), `.pdf` (fpdf2 + fuente Unicode embebida — ADR-007)
 - **Pruebas:** pytest (unit/integration/network)
 - **Persistencia:** ninguna; resultado efímero (RN-12)
 
@@ -140,7 +148,9 @@ transcriptorpy/
 │   ├── ADR-003-stack-de-soporte.md
 │   ├── ADR-004-metadata-via-ffprobe.md
 │   ├── ADR-005-formato-de-extraccion-de-audio.md
-│   └── ADR-006-troceo-como-decorador.md
+│   ├── ADR-006-troceo-como-decorador.md
+│   ├── ADR-007-libreria-de-pdf.md
+│   └── ADR-008-composicion.md
 ├── src/
 │   ├── transcriptorpy/        # reconstrucción test-first (código activo)
 │   │   ├── formato_archivo.py         # RN-05: extensiones válidas + es_video()
@@ -159,10 +169,15 @@ transcriptorpy/
 │   │   ├── fuente_contenido.py        # PuertoFuenteContenido + FuenteFalsa (RN-09)
 │   │   ├── fuente_youtube_ytdlp.py    # adaptador real yt-dlp (RN-09)
 │   │   ├── url_youtube.py             # es_url_youtube() — validación pura (RN-09)
+│   │   ├── exportador.py              # Exportador (Protocol), FormatoSalida, seleccionar_exportador(),
+│   │   │                              # ExportadorTxt, ExportadorDocx, ExportadorPdf (RN-08)
+│   │   ├── assets/
+│   │   │   └── DejaVuSans.ttf         # fuente Unicode embebida para ExportadorPdf
+│   │   ├── composicion.py             # ConfigTranscripcion + construir_caso_de_uso() (ADR-008)
 │   │   └── procesar_transcripcion.py  # CasoDeUsoTranscripcion (clase, 4 puertos)
 │   └── video_transcriber/     # spike CONGELADO — solo referencia (ADR-001)
 ├── tests/
-│   ├── unit/                  # 54 tests — dobles en memoria, sin I/O
+│   ├── unit/                  # 69 tests — dobles en memoria, sin I/O
 │   ├── integration/           # 9 tests — ffmpeg/ffprobe + OpenAI + yt-dlp
 │   │   └── conftest.py        # fixtures de entorno + carga de .env
 │   └── fixtures/
@@ -187,7 +202,7 @@ python -m venv .venv
 # 2. Dependencias
 pip install -e .[dev]
 
-# 3a. Tests unitarios — rápidos, sin dependencias externas (54 tests)
+# 3a. Tests unitarios — rápidos, sin dependencias externas (69 tests)
 pytest tests/unit -v
 
 # 3b. Tests de integración — requieren ffmpeg/ffprobe en PATH; 9 tests
@@ -246,6 +261,14 @@ Detalle completo en `specs/spec_formal.md`.
 - **ADR-006** — Troceo de audios largos implementado como decorador
   (`MotorConFragmentacion`) que envuelve cualquier `MotorTranscripcion`; el
   dominio y el caso de uso no conocen el límite del proveedor.
+- **ADR-007** — Exportador PDF usa `fpdf2` con fuente TrueType Unicode (DejaVu
+  Sans) embebida en el paquete; cobertura latin + cirílico + griego; CJK fuera
+  de v1. `pypdf` solo en dev para verificar el PDF en los tests.
+- **ADR-008** — Exportación fuera del caso de uso; factory pura
+  `construir_caso_de_uso(ConfigTranscripcion)` en `composicion.py`,
+  independiente de FastAPI; config explícita (no lee entorno por dentro);
+  `MetadataFfprobe` y `AudioFfmpeg` construidos una sola vez y compartidos entre
+  `MotorConFragmentacion` y el caso de uso.
 
 ---
 
@@ -262,11 +285,15 @@ Detalle completo en `specs/spec_formal.md`.
 - Adaptador **ffmpeg** — extracción de audio y recorte de ventanas temporales.
 - Adaptador **OpenAI** — transcripción real verificada contra API viva.
 - Adaptador **yt-dlp** — descarga real de audio de YouTube verificada (RN-09).
+- **Exportadores** (RN-08) — `.txt` nativo, `.docx` (python-docx), `.pdf`
+  (fpdf2 + DejaVu Sans Unicode embebida, ADR-007).
+- **Selector de exportador** — `FormatoSalida` (str+Enum), `Protocol Exportador`,
+  `seleccionar_exportador`; test de exhaustividad como guardia.
+- **Composición** (ADR-008) — `construir_caso_de_uso(ConfigTranscripcion)` en
+  `composicion.py`; instancias de metadata y audio compartidas; factory testeable
+  sin entorno ni red.
 
 ### Pendiente (en orden)
-1. **Exportadores** — salida en `.txt`, `.pdf` y `.docx` (RN-08).
-2. **Composición** — ensamblar los adaptadores reales en el caso de uso
-   (`MetadataFfprobe`, `AudioFfmpeg`, `MotorOpenAI` con `MotorConFragmentacion`,
-   `FuenteYoutubeYtdlp`).
-3. **Backend HTTP** — API con FastAPI.
-4. **Frontend** — interfaz con Vue.
+1. **Backend HTTP** — API con FastAPI; orquestación transcripción → exportación;
+   lectura de `OPENAI_API_KEY` del entorno para construir `ConfigTranscripcion`.
+2. **Frontend** — interfaz con Vue.
