@@ -46,9 +46,36 @@ def test_metadata_y_audio_son_la_misma_instancia_en_decorador_y_caso_de_uso():
     assert caso._puerto_audio is caso._motor._audio
 
 
-def test_ssl_cert_file_configura_verify_del_cliente_openai():
-    config = ConfigTranscripcion(openai_api_key="sk-test", ssl_cert_file="/ruta/bundle.pem")
+def test_cliente_openai_usa_sslcontext_cuando_hay_cert_file():
+    import ssl
+    import certifi
+
+    verify_capturado = None
+
+    def httpx_client_spy(**kwargs):
+        nonlocal verify_capturado
+        verify_capturado = kwargs.get("verify")
+        from unittest.mock import MagicMock
+        return MagicMock()
+
+    config = ConfigTranscripcion(
+        openai_api_key="sk-test",
+        ssl_cert_file=certifi.where(),
+    )
     with patch("transcriptorpy.composicion.openai.OpenAI"), \
-         patch("transcriptorpy.composicion.httpx.Client") as mock_http_client:
+         patch("transcriptorpy.composicion.httpx.Client", side_effect=httpx_client_spy):
         construir_caso_de_uso(config)
-    mock_http_client.assert_called_once_with(verify="/ruta/bundle.pem")
+
+    assert isinstance(verify_capturado, ssl.SSLContext)
+
+
+def test_sslcontext_se_construye_con_el_cafile_de_config():
+    config = ConfigTranscripcion(
+        openai_api_key="sk-test",
+        ssl_cert_file="/ruta/ficticia/bundle.pem",
+    )
+    with patch("transcriptorpy.composicion.ssl.create_default_context") as mock_create_ctx, \
+         patch("transcriptorpy.composicion.httpx.Client"), \
+         patch("transcriptorpy.composicion.openai.OpenAI"):
+        construir_caso_de_uso(config)
+    mock_create_ctx.assert_called_once_with(cafile=config.ssl_cert_file)

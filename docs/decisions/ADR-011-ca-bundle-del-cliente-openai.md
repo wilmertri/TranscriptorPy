@@ -73,3 +73,23 @@ de ese tier de tests, no en el código de la aplicación.
   en integración.
 - El campo `ssl_cert_file` aparece en `ConfigTranscripcion` aunque no todos los
   entornos lo usen; es un campo opcional con default `None`, costo mínimo.
+
+# Actualización (2026-06-26) — Migración a SSLContext explícito por deprecación de httpx
+## Contexto de la enmienda
+Al cerrar el smoke e2e (diferido de ADR-008) contra las APIs vivas, httpx 0.28.1 emitió DeprecationWarning: verify=<str> is deprecated; use verify=ssl.create_default_context(cafile=...). La forma httpx.Client(verify=config.ssl_cert_file) que fijó la decisión original quedó deprecada y será removida en una versión futura de httpx. Es evidencia nueva y concreta —no preferencia—, que habilita reabrir esta decisión cerrada.
+
+## Decisión enmendada
+
+construir_caso_de_uso, cuando ssl_cert_file no es None, construye un ssl.SSLContext ESTÁNDAR desde la ruta (ssl.create_default_context(cafile=config.ssl_cert_file)) y se lo pasa a httpx.Client(verify=<contexto>). Se abandona el string crudo.
+El contexto que arma producción es ESTÁNDAR: NO toca VERIFY_X509_STRICT ni ningún flag de relajación. Para un CA bien formado (el caso de producción), este contexto verifica correctamente.
+ConfigTranscripcion permanece como datos puros: sigue llevando la ruta (ssl_cert_file: str | None), NO un contexto vivo. La construcción del contexto ocurre en la factory, en el momento del ensamblado, no en la config.
+
+## Frontera del workaround de Avast (sin cambios)
+El ajuste VERIFY_X509_STRICT —necesario solo porque el CA de Avast viola RFC 5280 (Basic Constraints no crítico)— sigue confinado al conftest del tier de red. El conftest relaja ese bit SOBRE el contexto estándar, únicamente bajo network. Producción nunca lo limpia.
+
+## Consecuencia sobre responsabilidades
+La factory pasa de "pasar una ruta" a "construir un contexto TLS estándar desde una ruta". Es un corrimiento menor y acotado: ConfigTranscripcion no gana comportamiento (sigue siendo datos), y la construcción del contexto vive donde ya se construyen los adaptadores. No reintroduce un objeto vivo en la config (lo que esta misma ADR descartó); el contexto nace y muere dentro del ensamblado.
+
+## Alternativa considerada y descartada
+
+Quedarse en verify=<str> y parchear el seam interno de httpx solo en conftest: descartada. Deja producción sobre una firma deprecada que httpx removerá, y obliga al test a monkeypatchear el camino interno <str>→contexto que es justamente el deprecado; cada upgrade de httpx amenazaría el smoke. Migrar a SSLContext alinea producción con la API soportada y le da al conftest un seam estable (el contexto) en vez de uno moribundo.

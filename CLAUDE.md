@@ -54,9 +54,10 @@ gratis, simple, sin fricción.
     AudioFfmpeg una sola vez y los pasa tanto a MotorConFragmentacion (que los
     necesita para troceo) como al caso de uso — mismas instancias. Config
     explícita (dataclass frozen, openai_api_key, ssl_cert_file: str|None=None);
-    no lee entorno por dentro. Cuando ssl_cert_file no es None, construye el
-    cliente OpenAI con httpx.Client(verify=ssl_cert_file) — habilita entornos
-    con proxy TLS y CA propio (ADR-011).
+    no lee entorno por dentro. Cuando ssl_cert_file no es None, construye un
+    ssl.SSLContext estándar (ssl.create_default_context(cafile=ssl_cert_file))
+    y lo pasa como verify a httpx.Client — habilita entornos con proxy TLS y CA
+    propio (ADR-011; enmienda 2026-06-26 por deprecación de verify=<str> en httpx 0.28).
 - Capa HTTP abierta con FastAPI:
   - config.py: cargar_config_desde_entorno() lee OPENAI_API_KEY y SSL_CERT_FILE
     en la frontera del sistema; lanza ErrorConfiguracion si la clave falta o
@@ -84,7 +85,7 @@ gratis, simple, sin fricción.
   - fuente → yt-dlp: descarga real de YouTube verificada (network).
 - Campo idioma de la transcripción: opcional — la nube no lo devuelve; un futuro
   adaptador local (faster-whisper) sí lo haría.
-- Tests: 98 unitarios (passed) | 9 integración (passed) | 3 de red (passed).
+- Tests: 99 unitarios (passed) | 9 integración (passed) | 3 de red (passed).
 - Código heredado: spike funcional CONGELADO como referencia de solo lectura
   (ADR-001). No es la base de la implementación.
 
@@ -129,8 +130,10 @@ Todas en docs/decisions/:
   MOTOR/FUENTE→502, resto→422; SIN_VOZ como 422 con tipo aviso.
 - ADR-011: CA bundle alternativo para el cliente OpenAI — ConfigTranscripcion
   gana ssl_cert_file:str|None; cargar_config_desde_entorno lee SSL_CERT_FILE;
-  composicion.py construye httpx.Client(verify=ruta) solo cuando no es None.
-  Workarounds de CA mal formado (VERIFY_X509_STRICT) solo en conftest de tests.
+  composicion.py construye ssl.SSLContext estándar desde la ruta y lo pasa como
+  verify a httpx.Client (enmienda 2026-06-26: migración desde verify=<str>
+  deprecado en httpx 0.28). Workarounds de CA mal formado (VERIFY_X509_STRICT)
+  solo en conftest de tests, nunca en producción.
 
 ## Agentes
 - agents/analyst_agent.md — escucha y estructura; no propone tecnología.
@@ -171,7 +174,7 @@ specs/             — spec formal y RN
 features/          — Gherkin (Fase 2, implícita en tests)
 docs/decisions/    — ADR-001..ADR-010
 agents/            — prompts base
-tests/unit/        — 94 tests, dobles en memoria, sin I/O
+tests/unit/        — 99 tests, dobles en memoria, sin I/O
 tests/integration/ — 9 tests (ffmpeg/ffprobe + OpenAI + yt-dlp); marcadores integration/network
 tests/fixtures/    — audio_es.wav (fixture de red)
 src/video_transcriber/ — spike CONGELADO (solo lectura, ADR-001)

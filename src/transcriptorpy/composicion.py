@@ -1,3 +1,4 @@
+import ssl
 from dataclasses import dataclass
 
 import httpx
@@ -23,7 +24,7 @@ def construir_caso_de_uso(config: ConfigTranscripcion) -> CasoDeUsoTranscripcion
     if config.ssl_cert_file is not None:
         cliente_openai = openai.OpenAI(
             api_key=config.openai_api_key,
-            http_client=httpx.Client(verify=config.ssl_cert_file),
+            http_client=httpx.Client(verify=ssl.create_default_context(cafile=config.ssl_cert_file)),
         )
     else:
         cliente_openai = openai.OpenAI(api_key=config.openai_api_key)
