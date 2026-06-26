@@ -1,7 +1,7 @@
 import tempfile
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, UploadFile
+from fastapi import Depends, FastAPI, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
 from transcriptorpy.composicion import construir_caso_de_uso
@@ -11,6 +11,16 @@ from transcriptorpy.motivos import MotivoRechazo
 from transcriptorpy.procesar_transcripcion import CasoDeUsoTranscripcion
 
 app = FastAPI()
+
+_MENSAJE_ERROR_INESPERADO = "Ocurrió un error inesperado."
+
+
+@app.exception_handler(Exception)
+async def _manejador_excepcion_inesperada(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content={"tipo": "error", "mensaje": _MENSAJE_ERROR_INESPERADO},
+    )
 
 _MAPA_STATUS: dict[MotivoRechazo, int] = {
     MotivoRechazo.FORMATO: 415,

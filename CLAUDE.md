@@ -53,11 +53,15 @@ gratis, simple, sin fricción.
     ConfigTranscripcion) → CasoDeUsoTranscripcion. Ensambla MetadataFfprobe y
     AudioFfmpeg una sola vez y los pasa tanto a MotorConFragmentacion (que los
     necesita para troceo) como al caso de uso — mismas instancias. Config
-    explícita (dataclass frozen, openai_api_key); no lee entorno por dentro.
+    explícita (dataclass frozen, openai_api_key, ssl_cert_file: str|None=None);
+    no lee entorno por dentro. Cuando ssl_cert_file no es None, construye el
+    cliente OpenAI con httpx.Client(verify=ssl_cert_file) — habilita entornos
+    con proxy TLS y CA propio (ADR-011).
 - Capa HTTP abierta con FastAPI:
-  - config.py: cargar_config_desde_entorno() lee OPENAI_API_KEY en la frontera
-    del sistema; lanza ErrorConfiguracion si falta o está vacía. Respeta la
-    pureza de la factory (ADR-008): la lectura del entorno ocurre aquí, fuera
+  - config.py: cargar_config_desde_entorno() lee OPENAI_API_KEY y SSL_CERT_FILE
+    en la frontera del sistema; lanza ErrorConfiguracion si la clave falta o
+    está vacía; ssl_cert_file queda None si SSL_CERT_FILE está ausente. Respeta
+    la pureza de la factory (ADR-008): la lectura del entorno ocurre aquí, fuera
     de composicion.py.
   - api.py: endpoint POST /transcripciones. Entrada multipart con archivo o URL
     de YouTube (validación de exactamente una fuente → 422 FUENTE_AUSENTE si
@@ -67,9 +71,12 @@ gratis, simple, sin fricción.
     transcripcion.extensión) en éxito; JSON {tipo, motivo, mensaje} en error o
     aviso. Mapeo completo MotivoRechazo → status HTTP según ADR-010; SIN_VOZ
     devuelve 422 con tipo aviso (distinción semántica para el cliente).
-  - 17 tests del handler (test_api.py) ratificados por verificación de
+  - 18 tests del handler (test_api.py) ratificados por verificación de
     mutación: cada test falla por la razón correcta al remover su pieza de
-    producción. Sin discrepancias.
+    producción. Sin discrepancias. Incluye el manejador global de excepciones
+    inesperadas (@app.exception_handler(Exception)) que devuelve 500 con
+    {"tipo": "error", "mensaje": <cadena genérica fija>} sin filtrar internals
+    (ADR-010); constante _MENSAJE_ERROR_INESPERADO como fuente única de verdad.
 - Cuatro adaptadores REALES verificados contra sus sistemas externos:
   - metadata → ffprobe (integración).
   - audio → ffmpeg: extraer_audio + recortar (integración).
@@ -77,23 +84,22 @@ gratis, simple, sin fricción.
   - fuente → yt-dlp: descarga real de YouTube verificada (network).
 - Campo idioma de la transcripción: opcional — la nube no lo devuelve; un futuro
   adaptador local (faster-whisper) sí lo haría.
-- Tests: 94 unitarios (passed) | 9 integración (passed) | 3 de red (passed).
+- Tests: 98 unitarios (passed) | 9 integración (passed) | 3 de red (passed).
 - Código heredado: spike funcional CONGELADO como referencia de solo lectura
   (ADR-001). No es la base de la implementación.
 
 ## Próximo paso
-Completar la capa HTTP. La pieza ausente más urgente es el manejador global de
-excepciones inesperadas que devuelve 500 con el esquema JSON {tipo, motivo,
-mensaje} (hoy ausente: una excepción no controlada se propaga sin ese esquema).
-Luego: humo end-to-end con la composición real montada en FastAPI (el diferido
-de ADR-008). Dos tareas de hardening pendientes: saneo del nombre de archivo
-subido contra path traversal; y decidir si la persistencia del upload a un
-temporal con nombre original merece nota en un ADR.
+Smoke test e2e del diferido de ADR-008: el test existe en
+tests/integration/test_api_e2e.py y el cableado real ya funciona. Pendiente:
+actualizar conftest de integración para que ssl_context_local aplique el ajuste
+VERIFY_X509_STRICT (workaround del CA Avast) y que el smoke test pase en verde.
+Luego: hardening del nombre de archivo contra path traversal.
 
 ## Pendiente (en orden)
-1. **Capa HTTP — completar:** manejador 500 global (TDD estricto, rojo primero);
-   luego humo e2e con composición real; hardening de nombre de archivo.
-2. **Frontend con Vue.**
+1. **Smoke test e2e:** ajustar conftest de red para el workaround VERIFY_X509_STRICT
+   del CA Avast; el test de humo ya existe.
+2. **Hardening del nombre de archivo** (path traversal) en api.py.
+3. **Frontend con Vue.**
 
 ## Alcance
 - v1: herramienta anónima de un solo uso. Entradas: archivo (audio/video) y URL
@@ -121,6 +127,10 @@ Todas en docs/decisions/:
   de fuente única, parámetro formato con default txt, respuesta binaria vs JSON.
 - ADR-010: mapeo de MotivoRechazo a status HTTP — FORMATO→415, TAMANO→413,
   MOTOR/FUENTE→502, resto→422; SIN_VOZ como 422 con tipo aviso.
+- ADR-011: CA bundle alternativo para el cliente OpenAI — ConfigTranscripcion
+  gana ssl_cert_file:str|None; cargar_config_desde_entorno lee SSL_CERT_FILE;
+  composicion.py construye httpx.Client(verify=ruta) solo cuando no es None.
+  Workarounds de CA mal formado (VERIFY_X509_STRICT) solo en conftest de tests.
 
 ## Agentes
 - agents/analyst_agent.md — escucha y estructura; no propone tecnología.

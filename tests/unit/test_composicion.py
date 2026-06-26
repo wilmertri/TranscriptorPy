@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from transcriptorpy.audio_ffmpeg import AudioFfmpeg
 from transcriptorpy.composicion import ConfigTranscripcion, construir_caso_de_uso
 from transcriptorpy.fuente_youtube_ytdlp import FuenteYoutubeYtdlp
@@ -42,3 +44,11 @@ def test_metadata_y_audio_son_la_misma_instancia_en_decorador_y_caso_de_uso():
     caso = construir_caso_de_uso(_CONFIG)
     assert caso._puerto_metadata is caso._motor._metadata
     assert caso._puerto_audio is caso._motor._audio
+
+
+def test_ssl_cert_file_configura_verify_del_cliente_openai():
+    config = ConfigTranscripcion(openai_api_key="sk-test", ssl_cert_file="/ruta/bundle.pem")
+    with patch("transcriptorpy.composicion.openai.OpenAI"), \
+         patch("transcriptorpy.composicion.httpx.Client") as mock_http_client:
+        construir_caso_de_uso(config)
+    mock_http_client.assert_called_once_with(verify="/ruta/bundle.pem")

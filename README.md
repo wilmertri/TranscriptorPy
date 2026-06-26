@@ -50,10 +50,10 @@ mismas instancias de metadata y audio (ADR-008). **Capa HTTP en curso:**
 con entrada multipart (archivo o URL), validación de fuente única, formato con
 default `txt`, respuesta binaria con `Content-Disposition` en éxito y JSON
 `{tipo, motivo, mensaje}` en error/aviso, y mapeo completo de `MotivoRechazo`
-a status HTTP (ADR-009/010). Los 17 tests del handler fueron ratificados por
-verificación de mutación.
+a status HTTP (ADR-009/010). Los 18 tests del handler fueron ratificados por verificación de mutación,
+incluyendo el manejador global de excepciones inesperadas (500 con esquema JSON).
 
-Suite de pruebas: **94 unitarios** en verde · **9 de integración** (passed) · **3 de red** (passed contra APIs vivas).
+Suite de pruebas: **98 unitarios** en verde · **9 de integración** (passed) · **3 de red** (passed contra APIs vivas).
 
 ---
 
@@ -191,7 +191,7 @@ python -m venv .venv
 # 2. Dependencias
 pip install -e .[dev]
 
-# 3a. Tests unitarios — rápidos, sin dependencias externas (94 tests)
+# 3a. Tests unitarios — rápidos, sin dependencias externas (98 tests)
 pytest tests/unit -v
 
 # 3b. Tests de integración — requieren ffmpeg/ffprobe en PATH; 9 tests
@@ -265,6 +265,12 @@ Detalle completo en `specs/spec_formal.md`.
 - **ADR-010** — Mapeo de `MotivoRechazo` a status HTTP: `FORMATO`→415,
   `TAMANO`→413, `MOTOR`/`FUENTE`→502, resto→422; `SIN_VOZ` devuelve 422 con
   `tipo: "aviso"` para distinguirlo semánticamente de un error.
+- **ADR-011** — CA bundle alternativo para el cliente OpenAI: `ConfigTranscripcion`
+  gana `ssl_cert_file: str | None = None`; `cargar_config_desde_entorno` lee
+  `SSL_CERT_FILE` del entorno; `construir_caso_de_uso` construye
+  `httpx.Client(verify=ruta)` solo cuando el campo no es `None`. Habilita
+  despliegues detrás de un proxy TLS con CA propio sin alterar la pureza de la
+  factory.
 
 ---
 
@@ -288,13 +294,18 @@ Detalle completo en `specs/spec_formal.md`.
 - **Composición** (ADR-008) — `construir_caso_de_uso(ConfigTranscripcion)` en
   `composicion.py`; instancias de metadata y audio compartidas; factory testeable
   sin entorno ni red.
+- **Backend HTTP** — endpoint `POST /transcripciones` completo (`config.py` +
+  `api.py`); manejador global de excepciones inesperadas (`@app.exception_handler
+  (Exception)`) devuelve 500 con `{"tipo": "error", "mensaje": <genérico fijo>}`
+  sin filtrar internals (ADR-010); 18 tests del handler ratificados por
+  verificación de mutación.
 
 ### En curso
-- **Backend HTTP** — endpoint `POST /transcripciones` implementado (`config.py`
-  + `api.py`); 17 tests del handler en verde y ratificados por verificación de
-  mutación. Pendiente: manejador global de excepciones → 500 con esquema JSON;
-  humo end-to-end con composición real; hardening de nombre de archivo.
+- **Smoke test e2e** (diferido de ADR-008): el test existe; pendiente ajuste del
+  conftest de red para el workaround `VERIFY_X509_STRICT` del CA Avast (ADR-011).
+- Hardening del nombre de archivo subido contra path traversal.
 
 ### Pendiente (en orden)
-1. **Capa HTTP — completar:** manejador 500 global, humo e2e, hardening.
+1. **Capa HTTP — completar:** humo e2e con composición real; hardening de nombre
+   de archivo.
 2. **Frontend** — interfaz con Vue.

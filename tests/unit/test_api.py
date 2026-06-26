@@ -210,3 +210,31 @@ def test_post_transcripciones_sin_voz_devuelve_422_con_tipo_aviso():
     body = respuesta.json()
     assert body["tipo"] == "aviso"
     assert body["motivo"] == "SIN_VOZ"
+
+
+# ---------------------------------------------------------------------------
+# Manejador global de excepciones inesperadas — 500
+# ---------------------------------------------------------------------------
+
+
+def test_post_transcripciones_excepcion_inesperada_devuelve_500_json():
+    class CasoDeUsoQueExplota:
+        def procesar_archivo(self, nombre: str) -> None:
+            raise RuntimeError("boom")
+
+        def procesar_url(self, url: str) -> None:
+            raise RuntimeError("boom")
+
+    app.dependency_overrides[obtener_caso_de_uso] = lambda: CasoDeUsoQueExplota()
+    try:
+        cliente = TestClient(app, raise_server_exceptions=False)
+        respuesta = cliente.post(
+            "/transcripciones",
+            files={"file": ("audio.mp3", b"bytes-de-prueba", "audio/mpeg")},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert respuesta.status_code == 500
+    assert "application/json" in respuesta.headers["content-type"]
+    assert respuesta.json() == {"tipo": "error", "mensaje": "Ocurrió un error inesperado."}

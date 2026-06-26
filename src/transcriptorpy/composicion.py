@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import httpx
 import openai
 
 from transcriptorpy.audio_ffmpeg import AudioFfmpeg
@@ -13,13 +14,21 @@ from transcriptorpy.procesar_transcripcion import CasoDeUsoTranscripcion
 @dataclass(frozen=True)
 class ConfigTranscripcion:
     openai_api_key: str
+    ssl_cert_file: str | None = None
 
 
 def construir_caso_de_uso(config: ConfigTranscripcion) -> CasoDeUsoTranscripcion:
     metadata = MetadataFfprobe()
     audio = AudioFfmpeg()
+    if config.ssl_cert_file is not None:
+        cliente_openai = openai.OpenAI(
+            api_key=config.openai_api_key,
+            http_client=httpx.Client(verify=config.ssl_cert_file),
+        )
+    else:
+        cliente_openai = openai.OpenAI(api_key=config.openai_api_key)
     motor = MotorConFragmentacion(
-        motor_interno=MotorOpenAI(openai.OpenAI(api_key=config.openai_api_key)),
+        motor_interno=MotorOpenAI(cliente_openai),
         puerto_metadata=metadata,
         puerto_audio=audio,
     )
