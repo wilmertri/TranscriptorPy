@@ -11,7 +11,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.network]
 _AUDIO_FIXTURE = Path(__file__).parent.parent / "fixtures" / "audio_es.wav"
 
 
-def test_humo_post_transcripciones_composicion_real():
+def test_humo_post_transcripciones_composicion_real(relajar_verify_strict):
     if not os.environ.get("OPENAI_API_KEY"):
         pytest.skip("requiere OPENAI_API_KEY")
     if not _AUDIO_FIXTURE.exists():

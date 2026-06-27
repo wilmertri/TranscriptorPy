@@ -9,6 +9,12 @@ from dotenv import load_dotenv
 load_dotenv()  # carga .env antes de cualquier fixture; no toca el código de producción
 
 
+def _limpiar_verify_strict(ctx: ssl.SSLContext) -> ssl.SSLContext:
+    if hasattr(ssl, "VERIFY_X509_STRICT"):
+        ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return ctx
+
+
 @pytest.fixture(scope="session")
 def ssl_context_local():
     """
@@ -22,10 +28,18 @@ def ssl_context_local():
     bundle = os.environ.get("SSL_CERT_FILE")
     if not bundle:
         return None
-    ctx = ssl.create_default_context(cafile=bundle)
-    if hasattr(ssl, "VERIFY_X509_STRICT"):
-        ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
-    return ctx
+    return _limpiar_verify_strict(ssl.create_default_context(cafile=bundle))
+
+
+@pytest.fixture
+def relajar_verify_strict(monkeypatch):
+    if not os.environ.get("SSL_CERT_FILE"):
+        return
+    import transcriptorpy.composicion as _composicion
+    _original = _composicion.ssl.create_default_context
+    def _wrapper(*args, **kwargs):
+        return _limpiar_verify_strict(_original(*args, **kwargs))
+    monkeypatch.setattr(_composicion.ssl, "create_default_context", _wrapper)
 
 
 def _binario_disponible(nombre: str) -> bool:
