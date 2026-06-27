@@ -85,22 +85,21 @@ gratis, simple, sin fricción.
   - fuente → yt-dlp: descarga real de YouTube verificada (network).
 - Campo idioma de la transcripción: opcional — la nube no lo devuelve; un futuro
   adaptador local (faster-whisper) sí lo haría.
-- Tests: 99 unitarios (passed) | 9 integración (passed) | 3 de red (passed).
+- Smoke test e2e CERRADO (commit d0f2133, diferido ADR-008 saldado):
+  tests/integration/test_api_e2e.py ejercita construir_caso_de_uso real contra
+  APIs vivas. Fixture relajar_verify_strict (function-scoped, no-autouse) en
+  conftest de red limpia VERIFY_X509_STRICT sobre el SSLContext solo cuando el
+  smoke la pide; producción (api.py, composicion.py) intacta.
+- Tests: 99 unitarios (passed) | 9 integración (passed) | 4 de red (passed).
 - Código heredado: spike funcional CONGELADO como referencia de solo lectura
   (ADR-001). No es la base de la implementación.
 
 ## Próximo paso
-Smoke test e2e del diferido de ADR-008: el test existe en
-tests/integration/test_api_e2e.py y el cableado real ya funciona. Pendiente:
-actualizar conftest de integración para que ssl_context_local aplique el ajuste
-VERIFY_X509_STRICT (workaround del CA Avast) y que el smoke test pase en verde.
-Luego: hardening del nombre de archivo contra path traversal.
+Hardening del nombre de archivo contra path traversal en api.py.
 
 ## Pendiente (en orden)
-1. **Smoke test e2e:** ajustar conftest de red para el workaround VERIFY_X509_STRICT
-   del CA Avast; el test de humo ya existe.
-2. **Hardening del nombre de archivo** (path traversal) en api.py.
-3. **Frontend con Vue.**
+1. **Hardening del nombre de archivo** (path traversal) en api.py.
+2. **Frontend con Vue.**
 
 ## Alcance
 - v1: herramienta anónima de un solo uso. Entradas: archivo (audio/video) y URL
