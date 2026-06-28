@@ -132,9 +132,18 @@ aviso, rojo contenido para error, sistema tipográfico, esquinas y sombras suave
   de descarga usa la extensión del formato elegido (`transcripcion.{formato}`); si el
   backend manda Content-Disposition ese tiene precedencia. El selector aplica por igual
   a modo Archivo y modo URL de YouTube.
-- **Frontend v1 completo:** las dos fuentes (archivo y URL), el selector de formato
-  (txt/pdf/docx), el manejo de respuestas no-200 con bifurcación aviso/error, y el
-  happy path de descarga están todos implementados.
+- **Validaciones de cliente implementadas (conveniencia, no autoridad):** al seleccionar
+  un archivo se validan formato (extensión contra conjunto cerrado mp3/wav/m4a/mp4/mov)
+  y tamaño (limit 1 GB con `file.size`). El backend sigue siendo la fuente de verdad
+  (RN-05/06); el cliente solo evita el viaje cuando puede detectar el rechazo de
+  antemano. Los textos de error se toman de `COPIA_MOTIVO.FORMATO` y `COPIA_MOTIVO.TAMANO`
+  en `contratos.js` — misma fuente que los mensajes del backend. El mensaje se muestra
+  con el bloque visual `.bloque-feedback--error` ya existente, dentro del formulario
+  (sin reemplazarlo). El botón queda deshabilitado mientras el archivo sea inválido.
+  La duración (RN-07) y la validación de URL (RN-09) quedan exclusivamente en el backend.
+- **Frontend v1 CERRADO.** Fuentes: archivo y URL de YouTube. Formatos: txt/pdf/docx.
+  Manejo de errores: bifurcación aviso ámbar / error rojo con copy de contratos.js.
+  Validaciones de cliente: formato y tamaño de archivo.
 
 ## Próximo paso
 Frontend v1 cerrado. No hay incrementos de frontend pendientes para v1.

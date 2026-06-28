@@ -1,11 +1,24 @@
 <script setup>
 import { ref } from 'vue'
-import { resolverFeedbackDeRespuesta } from './contratos.js'
+import { resolverFeedbackDeRespuesta, COPIA_MOTIVO } from './contratos.js'
+
+// Validación de cliente (conveniencia, no sustituto del backend).
+const _EXTENSIONES_VALIDAS = new Set(['.mp3', '.wav', '.m4a', '.mp4', '.mov'])
+const _LIMITE_TAMANO_BYTES = 1 * 1024 * 1024 * 1024 // 1 GB
+
+function _validarArchivo(archivo) {
+  const idx = archivo.name.lastIndexOf('.')
+  const ext = idx >= 0 ? archivo.name.slice(idx).toLowerCase() : ''
+  if (!_EXTENSIONES_VALIDAS.has(ext)) return COPIA_MOTIVO.FORMATO
+  if (archivo.size > _LIMITE_TAMANO_BYTES) return COPIA_MOTIVO.TAMANO
+  return ''
+}
 
 // --- Estado de la pantalla ---
 const estado = ref('idle') // idle | enviando | exito | feedback
 const modo = ref('archivo') // 'archivo' | 'url' — determina qué input se muestra
 const archivoSeleccionado = ref(null)
+const errorArchivo = ref('') // mensaje de validación de cliente; vacío = archivo válido
 const urlYoutube = ref('')
 const textoFeedback = ref('')
 const tonoFeedback = ref('error') // 'error' | 'aviso' — deriva del campo tipo del backend
@@ -39,7 +52,10 @@ function detenerCicloEtapas() {
 function cambiarModo(nuevoModo) {
   if (nuevoModo === modo.value) return
   // Limpiar el input del modo que se abandona para evitar valores colgados al enviar.
-  if (modo.value === 'archivo') archivoSeleccionado.value = null
+  if (modo.value === 'archivo') {
+    archivoSeleccionado.value = null
+    errorArchivo.value = ''
+  }
   if (modo.value === 'url') urlYoutube.value = ''
   modo.value = nuevoModo
 }
@@ -47,13 +63,17 @@ function cambiarModo(nuevoModo) {
 // --- Manejo del archivo ---
 function alSeleccionarArchivo(evento) {
   const archivo = evento.target.files[0]
-  if (archivo) archivoSeleccionado.value = archivo
+  if (!archivo) return
+  archivoSeleccionado.value = archivo
+  errorArchivo.value = _validarArchivo(archivo)
 }
 
 function alSoltarArchivo(evento) {
   arrastrandoSobre.value = false
   const archivo = evento.dataTransfer?.files[0]
-  if (archivo) archivoSeleccionado.value = archivo
+  if (!archivo) return
+  archivoSeleccionado.value = archivo
+  errorArchivo.value = _validarArchivo(archivo)
 }
 
 // --- Descarga del resultado ---
@@ -126,6 +146,7 @@ async function transcribir() {
 function reiniciar() {
   estado.value = 'idle'
   archivoSeleccionado.value = null
+  errorArchivo.value = ''
   urlYoutube.value = ''
   textoFeedback.value = ''
   tonoFeedback.value = 'error'
@@ -207,6 +228,15 @@ function reiniciar() {
           spellcheck="false"
         />
 
+        <!-- Error de validación de cliente (formato o tamaño) -->
+        <div
+          v-if="errorArchivo"
+          class="bloque-feedback bloque-feedback--error"
+          role="alert"
+        >
+          <p class="bloque-feedback__texto">{{ errorArchivo }}</p>
+        </div>
+
         <!-- Selector de formato de descarga -->
         <div class="fila-formato">
           <label class="fila-formato__etiqueta" for="selector-formato">Formato</label>
@@ -220,7 +250,7 @@ function reiniciar() {
         <button
           type="submit"
           class="boton-primario"
-          :disabled="modo === 'archivo' ? !archivoSeleccionado : !urlYoutube.trim()"
+          :disabled="modo === 'archivo' ? (!archivoSeleccionado || !!errorArchivo) : !urlYoutube.trim()"
         >
           Transcribir
         </button>
