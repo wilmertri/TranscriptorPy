@@ -119,15 +119,20 @@ aviso, rojo contenido para error, sistema tipográfico, esquinas y sombras suave
   (ámbar para aviso / rojo para error) deriva del campo tipo del cuerpo JSON;
   no se hardcodea por motivo. Estado renombrado de 'error' a 'feedback'.
   Bloque de feedback con border-left 4px + fondo suave usando tokens de tokens.css.
-- **Próximos incrementos frontend:** entrada por URL de YouTube, selector de
-  formato (pdf/docx), validaciones de cliente.
+- **Entrada por URL de YouTube implementada:** selector de modo (segmented control
+  sobrio con tokens existentes) que alterna entre "Archivo" y "URL de YouTube";
+  un solo input visible a la vez — cierra por construcción el caso de fuente doble.
+  Al cambiar de modo se limpia el input abandonado. En modo URL el envío manda
+  el campo url (string) en multipart; en modo Archivo manda file. El botón
+  Transcribir se deshabilita mientras el input del modo activo esté vacío.
+  El resto del flujo (espera, descarga, feedback) se reutiliza sin cambios.
+- **Próximos incrementos frontend:** selector de formato (pdf/docx).
 
 ## Próximo paso
-Entrada por URL de YouTube en el frontend.
+Selector de formato de salida (pdf/docx) en el frontend.
 
 ## Pendiente (en orden)
-1. **Entrada por URL de YouTube** en el frontend.
-2. **Selector de formato** (pdf/docx) en el frontend.
+1. **Selector de formato** (pdf/docx) en el frontend.
 
 ## Alcance
 - v1: herramienta anónima de un solo uso. Entradas: archivo (audio/video) y URL

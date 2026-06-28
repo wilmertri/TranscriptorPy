@@ -4,7 +4,9 @@ import { resolverFeedbackDeRespuesta } from './contratos.js'
 
 // --- Estado de la pantalla ---
 const estado = ref('idle') // idle | enviando | exito | feedback
+const modo = ref('archivo') // 'archivo' | 'url' — determina qué input se muestra
 const archivoSeleccionado = ref(null)
+const urlYoutube = ref('')
 const textoFeedback = ref('')
 const tonoFeedback = ref('error') // 'error' | 'aviso' — deriva del campo tipo del backend
 const arrastrandoSobre = ref(false)
@@ -30,6 +32,15 @@ function detenerCicloEtapas() {
     clearInterval(intervaloEtapas)
     intervaloEtapas = null
   }
+}
+
+// --- Selector de modo ---
+function cambiarModo(nuevoModo) {
+  if (nuevoModo === modo.value) return
+  // Limpiar el input del modo que se abandona para evitar valores colgados al enviar.
+  if (modo.value === 'archivo') archivoSeleccionado.value = null
+  if (modo.value === 'url') urlYoutube.value = ''
+  modo.value = nuevoModo
 }
 
 // --- Manejo del archivo ---
@@ -64,7 +75,10 @@ function descargarBlob(blob, nombre) {
 
 // --- Acción principal ---
 async function transcribir() {
-  if (!archivoSeleccionado.value) return
+  const listo = modo.value === 'archivo'
+    ? !!archivoSeleccionado.value
+    : urlYoutube.value.trim() !== ''
+  if (!listo) return
 
   estado.value = 'enviando'
   textoFeedback.value = ''
@@ -72,7 +86,11 @@ async function transcribir() {
 
   try {
     const cuerpo = new FormData()
-    cuerpo.append('file', archivoSeleccionado.value)
+    if (modo.value === 'archivo') {
+      cuerpo.append('file', archivoSeleccionado.value)
+    } else {
+      cuerpo.append('url', urlYoutube.value.trim())
+    }
     cuerpo.append('formato', 'txt')
 
     // Sin timeout explícito: dejamos que el navegador no corte (ADR-013).
@@ -107,6 +125,7 @@ async function transcribir() {
 function reiniciar() {
   estado.value = 'idle'
   archivoSeleccionado.value = null
+  urlYoutube.value = ''
   textoFeedback.value = ''
   tonoFeedback.value = 'error'
   etapaActual.value = 0
@@ -125,7 +144,34 @@ function reiniciar() {
 
       <!-- Formulario de subida (estado idle) -->
       <form v-if="estado === 'idle'" class="formulario" @submit.prevent="transcribir">
+
+        <!-- Selector de modo: Archivo / URL de YouTube -->
+        <div class="selector-modo" role="tablist" aria-label="Fuente de entrada">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="modo === 'archivo'"
+            class="selector-modo__opcion"
+            :class="{ 'selector-modo__opcion--activa': modo === 'archivo' }"
+            @click="cambiarModo('archivo')"
+          >
+            Archivo
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="modo === 'url'"
+            class="selector-modo__opcion"
+            :class="{ 'selector-modo__opcion--activa': modo === 'url' }"
+            @click="cambiarModo('url')"
+          >
+            URL de YouTube
+          </button>
+        </div>
+
+        <!-- Input modo Archivo -->
         <label
+          v-if="modo === 'archivo'"
           class="zona-archivo"
           :class="{ 'zona-archivo--activa': archivoSeleccionado, 'zona-archivo--arrastrando': arrastrandoSobre }"
           @dragover.prevent="arrastrandoSobre = true"
@@ -148,7 +194,22 @@ function reiniciar() {
           </span>
         </label>
 
-        <button type="submit" class="boton-primario" :disabled="!archivoSeleccionado">
+        <!-- Input modo URL -->
+        <input
+          v-else
+          v-model="urlYoutube"
+          type="text"
+          class="input-url"
+          placeholder="https://www.youtube.com/watch?v=..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+
+        <button
+          type="submit"
+          class="boton-primario"
+          :disabled="modo === 'archivo' ? !archivoSeleccionado : !urlYoutube.trim()"
+        >
           Transcribir
         </button>
       </form>
@@ -237,6 +298,35 @@ function reiniciar() {
   gap: 1rem;
 }
 
+/* Selector de modo (segmented control) */
+.selector-modo {
+  display: flex;
+  background: var(--color-fondo);
+  border-radius: var(--radio);
+  padding: 0.25rem;
+  gap: 0.25rem;
+}
+
+.selector-modo__opcion {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radio) - 2px);
+  font-size: var(--escala-sm);
+  font-weight: var(--peso-normal);
+  color: var(--color-texto-suave);
+  cursor: pointer;
+  transition: background var(--transicion), color var(--transicion);
+}
+
+.selector-modo__opcion--activa {
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font-weight: var(--peso-medio);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
 /* Zona de arrastre / clic */
 .zona-archivo {
   display: flex;
@@ -297,6 +387,29 @@ function reiniciar() {
   padding: 1rem;
   word-break: break-all;
   text-align: center;
+}
+
+/* Input de URL */
+.input-url {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid var(--color-borde);
+  border-radius: var(--radio);
+  font-size: var(--escala-sm);
+  color: var(--color-texto);
+  background: var(--color-superficie);
+  outline: none;
+  transition: border-color var(--transicion);
+  box-sizing: border-box;
+}
+
+.input-url:focus {
+  border-color: var(--color-acento);
+}
+
+.input-url::placeholder {
+  color: var(--color-texto-suave);
+  opacity: 0.7;
 }
 
 /* Botones */
