@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse, Response
 from transcriptorpy.composicion import construir_caso_de_uso
 from transcriptorpy.config import cargar_config_desde_entorno
 from transcriptorpy.exportador import FormatoSalida, metadatos_formato, seleccionar_exportador
+from transcriptorpy.formato_archivo import FORMATOS_SOPORTADOS
 from transcriptorpy.motivos import MotivoRechazo
 from transcriptorpy.procesar_transcripcion import CasoDeUsoTranscripcion
 
@@ -86,7 +87,10 @@ async def transcribir(
     if tiene_archivo:
         contenido = await file.read()
         with tempfile.TemporaryDirectory() as tmp_dir:
-            ruta = str(Path(tmp_dir) / (file.filename or "audio"))
+            sufijo = Path(file.filename or "").suffix.lower()
+            if sufijo not in FORMATOS_SOPORTADOS:
+                sufijo = ""
+            ruta = str(Path(tmp_dir) / f"entrada{sufijo}")
             Path(ruta).write_bytes(contenido)
             resultado = caso_de_uso.procesar_archivo(ruta)
     else:

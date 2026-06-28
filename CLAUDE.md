@@ -72,12 +72,18 @@ gratis, simple, sin fricción.
     transcripcion.extensión) en éxito; JSON {tipo, motivo, mensaje} en error o
     aviso. Mapeo completo MotivoRechazo → status HTTP según ADR-010; SIN_VOZ
     devuelve 422 con tipo aviso (distinción semántica para el cliente).
-  - 18 tests del handler (test_api.py) ratificados por verificación de
+    Hardening path traversal (ADR-012): el temporal del upload se nombra
+    "entrada"+sufijo, donde el sufijo sale de FORMATOS_SOPORTADOS (alias público
+    de formato_archivo.py); file.filename no toca la ruta. Cierre por
+    construcción, no por saneo.
+  - 20 tests del handler (test_api.py) ratificados por verificación de
     mutación: cada test falla por la razón correcta al remover su pieza de
     producción. Sin discrepancias. Incluye el manejador global de excepciones
     inesperadas (@app.exception_handler(Exception)) que devuelve 500 con
     {"tipo": "error", "mensaje": <cadena genérica fija>} sin filtrar internals
     (ADR-010); constante _MENSAJE_ERROR_INESPERADO como fuente única de verdad.
+    Dos tests de traversal (ADR-012): contención de ruta y sufijo neutro para
+    extensión no soportada; ambas ramas ratificadas por mutación.
 - Cuatro adaptadores REALES verificados contra sus sistemas externos:
   - metadata → ffprobe (integración).
   - audio → ffmpeg: extraer_audio + recortar (integración).
@@ -90,16 +96,15 @@ gratis, simple, sin fricción.
   APIs vivas. Fixture relajar_verify_strict (function-scoped, no-autouse) en
   conftest de red limpia VERIFY_X509_STRICT sobre el SSLContext solo cuando el
   smoke la pide; producción (api.py, composicion.py) intacta.
-- Tests: 99 unitarios (passed) | 9 integración (passed) | 4 de red (passed).
+- Tests: 101 unitarios (passed) | 9 integración (passed) | 4 de red (passed).
 - Código heredado: spike funcional CONGELADO como referencia de solo lectura
   (ADR-001). No es la base de la implementación.
 
 ## Próximo paso
-Hardening del nombre de archivo contra path traversal en api.py.
+Frontend con Vue. El backend de v1 está completo y endurecido.
 
 ## Pendiente (en orden)
-1. **Hardening del nombre de archivo** (path traversal) en api.py.
-2. **Frontend con Vue.**
+1. **Frontend con Vue.**
 
 ## Alcance
 - v1: herramienta anónima de un solo uso. Entradas: archivo (audio/video) y URL
@@ -133,6 +138,11 @@ Todas en docs/decisions/:
   verify a httpx.Client (enmienda 2026-06-26: migración desde verify=<str>
   deprecado en httpx 0.28). Workarounds de CA mal formado (VERIFY_X509_STRICT)
   solo en conftest de tests, nunca en producción.
+- ADR-012: el nombre del temporal de upload no deriva del cliente — base fija
+  "entrada" + sufijo del conjunto público FORMATOS_SOPORTADOS (alias en
+  formato_archivo.py); file.filename nunca toca la ruta. Cierre por construcción.
+  Enmienda (2026-06-27): el handler importa el conjunto del dominio en vez de
+  duplicar la regla; una sola fuente de verdad para las extensiones soportadas.
 
 ## Agentes
 - agents/analyst_agent.md — escucha y estructura; no propone tecnología.
@@ -144,7 +154,7 @@ src/transcriptorpy/
 ├── __init__.py
 ├── audio_ffmpeg.py            — adaptador real ffmpeg (PuertoAudio)
 ├── duracion_archivo.py        — RN-07: límite 60 min
-├── formato_archivo.py         — RN-05: extensiones válidas + es_video()
+├── formato_archivo.py         — RN-05: extensiones válidas + es_video() + FORMATOS_SOPORTADOS (alias público, consumido por api.py para ADR-012)
 ├── fragmentacion.py           — planificar_fragmentos() (función pura)
 ├── fuente_contenido.py        — PuertoFuenteContenido, FuenteFalsa, ErrorObtencionContenido
 ├── fuente_youtube_ytdlp.py    — adaptador real yt-dlp (FuenteYoutubeYtdlp)
@@ -161,7 +171,7 @@ src/transcriptorpy/
 │                                MetadatosFormato (NamedTuple), metadatos_formato()
 ├── config.py                  — cargar_config_desde_entorno() + ErrorConfiguracion
 │                                (frontera: lee OPENAI_API_KEY del entorno)
-├── api.py                     — FastAPI app, endpoint POST /transcripciones (ADR-009/010)
+├── api.py                     — FastAPI app, endpoint POST /transcripciones (ADR-009/010/012)
 ├── motivos.py                 — MotivoRechazo (str+Enum cerrado)
 ├── procesador_audio.py        — PuertoAudio, AudioFalso, ErrorProcesamientoAudio
 ├── procesar_transcripcion.py  — CasoDeUsoTranscripcion (clase, 4 puertos inyectados)

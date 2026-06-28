@@ -217,6 +217,81 @@ def test_post_transcripciones_sin_voz_devuelve_422_con_tipo_aviso():
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Hardening — path traversal (ADR-012)
+# ---------------------------------------------------------------------------
+
+
+def test_nombre_de_archivo_malicioso_no_escapa_del_temporal(monkeypatch):
+    import pathlib
+    import tempfile
+
+    capturas = {}
+
+    _real_TD = tempfile.TemporaryDirectory
+
+    class _SpyTD(_real_TD):
+        def __enter__(self):
+            d = super().__enter__()
+            capturas["tmp_dir"] = pathlib.Path(d).resolve()
+            return d
+
+    def _spy_write_bytes(self, data):
+        capturas["ruta_escrita"] = self.resolve()
+
+    monkeypatch.setattr(tempfile, "TemporaryDirectory", _SpyTD)
+    monkeypatch.setattr(pathlib.Path, "write_bytes", _spy_write_bytes)
+
+    app.dependency_overrides[obtener_caso_de_uso] = lambda: CasoDeUsoFalso(_RESULTADO_EXITOSO)
+    try:
+        TestClient(app).post(
+            "/transcripciones",
+            files={"file": ("../../evil.wav", b"bytes-de-prueba", "audio/wav")},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    ruta = capturas["ruta_escrita"]
+    tmp_dir = capturas["tmp_dir"]
+    assert ruta.is_relative_to(tmp_dir)
+
+
+def test_nombre_malicioso_con_extension_no_soportada_no_escapa(monkeypatch):
+    import pathlib
+    import tempfile
+
+    capturas = {}
+
+    _real_TD = tempfile.TemporaryDirectory
+
+    class _SpyTD(_real_TD):
+        def __enter__(self):
+            d = super().__enter__()
+            capturas["tmp_dir"] = pathlib.Path(d).resolve()
+            return d
+
+    def _spy_write_bytes(self, data):
+        capturas["ruta_escrita"] = self.resolve()
+
+    monkeypatch.setattr(tempfile, "TemporaryDirectory", _SpyTD)
+    monkeypatch.setattr(pathlib.Path, "write_bytes", _spy_write_bytes)
+
+    app.dependency_overrides[obtener_caso_de_uso] = lambda: CasoDeUsoFalso(_RESULTADO_EXITOSO)
+    try:
+        TestClient(app).post(
+            "/transcripciones",
+            files={"file": ("../../evil.php", b"bytes-de-prueba", "application/octet-stream")},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    ruta = capturas["ruta_escrita"]
+    tmp_dir = capturas["tmp_dir"]
+    assert ruta.is_relative_to(tmp_dir)
+    assert not ruta.name.endswith(".php")
+    assert "evil" not in ruta.name
+
+
 def test_post_transcripciones_excepcion_inesperada_devuelve_500_json():
     class CasoDeUsoQueExplota:
         def procesar_archivo(self, nombre: str) -> None:

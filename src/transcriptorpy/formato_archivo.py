@@ -1,6 +1,7 @@
 from pathlib import Path
 
 _FORMATOS_SOPORTADOS = {".mp3", ".wav", ".m4a", ".mp4", ".mov"}
+FORMATOS_SOPORTADOS = _FORMATOS_SOPORTADOS
 _FORMATOS_VIDEO = {".mp4", ".mov"}
 
 
