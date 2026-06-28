@@ -10,6 +10,7 @@ const urlYoutube = ref('')
 const textoFeedback = ref('')
 const tonoFeedback = ref('error') // 'error' | 'aviso' — deriva del campo tipo del backend
 const arrastrandoSobre = ref(false)
+const formatoSalida = ref('txt') // 'txt' | 'pdf' | 'docx' — se envía como campo formato
 
 // --- Ciclo de etapas durante la espera ---
 const etapas = [
@@ -59,7 +60,7 @@ function alSoltarArchivo(evento) {
 function extraerNombreDescarga(respuesta) {
   const disposicion = respuesta.headers.get('content-disposition') ?? ''
   const coincidencia = disposicion.match(/filename="([^"]+)"/)
-  return coincidencia ? coincidencia[1] : 'transcripcion.txt'
+  return coincidencia ? coincidencia[1] : `transcripcion.${formatoSalida.value}`
 }
 
 function descargarBlob(blob, nombre) {
@@ -91,7 +92,7 @@ async function transcribir() {
     } else {
       cuerpo.append('url', urlYoutube.value.trim())
     }
-    cuerpo.append('formato', 'txt')
+    cuerpo.append('formato', formatoSalida.value)
 
     // Sin timeout explícito: dejamos que el navegador no corte (ADR-013).
     const respuesta = await fetch('/transcripciones', {
@@ -128,6 +129,7 @@ function reiniciar() {
   urlYoutube.value = ''
   textoFeedback.value = ''
   tonoFeedback.value = 'error'
+  formatoSalida.value = 'txt'
   etapaActual.value = 0
 }
 </script>
@@ -204,6 +206,16 @@ function reiniciar() {
           autocomplete="off"
           spellcheck="false"
         />
+
+        <!-- Selector de formato de descarga -->
+        <div class="fila-formato">
+          <label class="fila-formato__etiqueta" for="selector-formato">Formato</label>
+          <select id="selector-formato" v-model="formatoSalida" class="selector-formato">
+            <option value="txt">TXT</option>
+            <option value="pdf">PDF</option>
+            <option value="docx">DOCX</option>
+          </select>
+        </div>
 
         <button
           type="submit"
@@ -410,6 +422,35 @@ function reiniciar() {
 .input-url::placeholder {
   color: var(--color-texto-suave);
   opacity: 0.7;
+}
+
+/* Selector de formato */
+.fila-formato {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.fila-formato__etiqueta {
+  font-size: var(--escala-sm);
+  color: var(--color-texto-suave);
+  flex-shrink: 0;
+}
+
+.selector-formato {
+  padding: 0.375rem 0.625rem;
+  border: 1.5px solid var(--color-borde);
+  border-radius: var(--radio);
+  font-size: var(--escala-sm);
+  color: var(--color-texto);
+  background: var(--color-superficie);
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transicion);
+}
+
+.selector-formato:focus {
+  border-color: var(--color-acento);
 }
 
 /* Botones */

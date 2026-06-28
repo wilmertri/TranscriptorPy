@@ -126,13 +126,21 @@ aviso, rojo contenido para error, sistema tipográfico, esquinas y sombras suave
   el campo url (string) en multipart; en modo Archivo manda file. El botón
   Transcribir se deshabilita mientras el input del modo activo esté vacío.
   El resto del flujo (espera, descarga, feedback) se reutiliza sin cambios.
-- **Próximos incrementos frontend:** selector de formato (pdf/docx).
+- **Selector de formato implementado:** selector `<select>` compacto (TXT / PDF / DOCX)
+  visible siempre en el formulario, con txt preseleccionado por defecto (coherente con
+  ADR-009). El campo formato del multipart refleja la elección. El nombre de fallback
+  de descarga usa la extensión del formato elegido (`transcripcion.{formato}`); si el
+  backend manda Content-Disposition ese tiene precedencia. El selector aplica por igual
+  a modo Archivo y modo URL de YouTube.
+- **Frontend v1 completo:** las dos fuentes (archivo y URL), el selector de formato
+  (txt/pdf/docx), el manejo de respuestas no-200 con bifurcación aviso/error, y el
+  happy path de descarga están todos implementados.
 
 ## Próximo paso
-Selector de formato de salida (pdf/docx) en el frontend.
+Frontend v1 cerrado. No hay incrementos de frontend pendientes para v1.
 
 ## Pendiente (en orden)
-1. **Selector de formato** (pdf/docx) en el frontend.
+*(no hay pendientes de frontend para v1)*
 
 ## Alcance
 - v1: herramienta anónima de un solo uso. Entradas: archivo (audio/video) y URL
