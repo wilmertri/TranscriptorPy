@@ -110,18 +110,24 @@ aviso, rojo contenido para error, sistema tipográfico, esquinas y sombras suave
   POST /transcripciones (multipart, formato=txt), indicador indeterminado con
   copy por etapas (Subiendo / Procesando / Transcribiendo), descarga del blob
   en 200 con nombre del Content-Disposition. Proxy Vite: /transcripciones →
-  localhost:8000. Seam de error no-200 comentado, listo para el siguiente
-  incremento (bifurcar por tipo/motivo del JSON de error).
-- **Próximos incrementos frontend:** manejo de errores por MotivoRechazo, entrada
-  por URL de YouTube, selector de formato (pdf/docx), validaciones de cliente.
+  localhost:8000.
+- **Manejo de respuestas no-200 implementado:** contratos.js exporta COPIA_MOTIVO
+  (diccionario motivo → texto en español de Colombia, trato de usted, cubre
+  conjunto cerrado de ADR-010) y resolverFeedbackDeRespuesta(respuesta) con cadena
+  de fallback (dict → backend.mensaje → texto genérico). App.vue bifurca por
+  respuesta.ok: blob en éxito, bloque de feedback en no-200. El tono
+  (ámbar para aviso / rojo para error) deriva del campo tipo del cuerpo JSON;
+  no se hardcodea por motivo. Estado renombrado de 'error' a 'feedback'.
+  Bloque de feedback con border-left 4px + fondo suave usando tokens de tokens.css.
+- **Próximos incrementos frontend:** entrada por URL de YouTube, selector de
+  formato (pdf/docx), validaciones de cliente.
 
 ## Próximo paso
-Manejo de errores específicos por MotivoRechazo en el frontend (siguiente incremento).
+Entrada por URL de YouTube en el frontend.
 
 ## Pendiente (en orden)
-1. **Errores específicos por motivo** en el frontend (bifurcar el JSON de error).
-2. **Entrada por URL de YouTube** en el frontend.
-3. **Selector de formato** (pdf/docx) en el frontend.
+1. **Entrada por URL de YouTube** en el frontend.
+2. **Selector de formato** (pdf/docx) en el frontend.
 
 ## Alcance
 - v1: herramienta anónima de un solo uso. Entradas: archivo (audio/video) y URL

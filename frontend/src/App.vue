@@ -1,10 +1,12 @@
 <script setup>
 import { ref } from 'vue'
+import { resolverFeedbackDeRespuesta } from './contratos.js'
 
 // --- Estado de la pantalla ---
-const estado = ref('idle') // idle | enviando | exito | error
+const estado = ref('idle') // idle | enviando | exito | feedback
 const archivoSeleccionado = ref(null)
-const mensajeError = ref('')
+const textoFeedback = ref('')
+const tonoFeedback = ref('error') // 'error' | 'aviso' — deriva del campo tipo del backend
 const arrastrandoSobre = ref(false)
 
 // --- Ciclo de etapas durante la espera ---
@@ -65,7 +67,7 @@ async function transcribir() {
   if (!archivoSeleccionado.value) return
 
   estado.value = 'enviando'
-  mensajeError.value = ''
+  textoFeedback.value = ''
   iniciarCicloEtapas()
 
   try {
@@ -85,19 +87,18 @@ async function transcribir() {
       descargarBlob(blob, extraerNombreDescarga(respuesta))
       estado.value = 'exito'
     } else {
-      // TODO: bifurcar por respuesta.json().tipo y .motivo para mensajes
-      // específicos por MotivoRechazo (FORMATO→415, TAMANO→413, MOTOR/FUENTE→502,
-      // DURACION/ILEGIBLE/EXTRACCION/URL_INVALIDA→422, SIN_VOZ→422 aviso).
-      // Seam: await respuesta.json() → { tipo, motivo, mensaje } → mapear a copia.
-      // Por ahora, marcador de posición genérico; este bloque es el punto de
-      // extensión del siguiente incremento.
-      estado.value = 'error'
-      mensajeError.value = 'La transcripción no pudo completarse. Intentá de nuevo.'
+      // No-200: el cuerpo es JSON { tipo, motivo, mensaje } (ADR-009/010).
+      // resolverFeedbackDeRespuesta aplica el diccionario y la cadena de fallback.
+      const { tono, texto } = await resolverFeedbackDeRespuesta(respuesta)
+      tonoFeedback.value = tono
+      textoFeedback.value = texto
+      estado.value = 'feedback'
     }
   } catch {
-    // Error de red o respuesta no procesable.
-    estado.value = 'error'
-    mensajeError.value = 'No se pudo conectar con el servidor. Verificá que esté corriendo.'
+    // Error de red (sin respuesta del servidor).
+    tonoFeedback.value = 'error'
+    textoFeedback.value = 'No se pudo conectar con el servidor. Verifique que esté corriendo.'
+    estado.value = 'feedback'
   } finally {
     detenerCicloEtapas()
   }
@@ -106,7 +107,8 @@ async function transcribir() {
 function reiniciar() {
   estado.value = 'idle'
   archivoSeleccionado.value = null
-  mensajeError.value = ''
+  textoFeedback.value = ''
+  tonoFeedback.value = 'error'
   etapaActual.value = 0
 }
 </script>
@@ -170,9 +172,14 @@ function reiniciar() {
         </button>
       </div>
 
-      <!-- Error (estado error) -->
-      <div v-else-if="estado === 'error'" class="resultado">
-        <p class="resultado__mensaje resultado__mensaje--error">{{ mensajeError }}</p>
+      <!-- Feedback (estado feedback): aviso (ámbar) o error (rojo) -->
+      <div
+        v-else-if="estado === 'feedback'"
+        class="bloque-feedback"
+        :class="`bloque-feedback--${tonoFeedback}`"
+        role="alert"
+      >
+        <p class="bloque-feedback__texto">{{ textoFeedback }}</p>
         <button class="boton-secundario" @click="reiniciar">Volver a intentar</button>
       </div>
     </main>
@@ -387,7 +394,31 @@ function reiniciar() {
   color: var(--color-texto);
 }
 
-.resultado__mensaje--error {
+/* Bloque de feedback: ámbar (aviso) o rojo (error) */
+.bloque-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1rem 1.125rem;
+  border-radius: var(--radio);
+  border-left: 4px solid currentColor;
+}
+
+.bloque-feedback--error {
   color: var(--color-error);
+  background: var(--color-error-fondo);
+}
+
+.bloque-feedback--aviso {
+  color: var(--color-aviso);
+  background: var(--color-aviso-fondo);
+}
+
+.bloque-feedback__texto {
+  margin: 0;
+  font-size: var(--escala-base);
+  line-height: 1.5;
+  color: inherit;
 }
 </style>
