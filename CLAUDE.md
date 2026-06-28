@@ -100,11 +100,28 @@ gratis, simple, sin fricción.
 - Código heredado: spike funcional CONGELADO como referencia de solo lectura
   (ADR-001). No es la base de la implementación.
 
+## Frontend (EN CURSO)
+Vue 3 + Vite en frontend/ (hermano de src/, monorepo — ADR-013). Sin TDD ni
+mutación; flujo funcional directo. Dirección de diseño: minimalista, una columna
+centrada, tokens centralizados en frontend/src/assets/tokens.css (fondo neutro
+muy claro, texto gris oscuro, acento teal apagado #2b7a87, ámbar sobrio para
+aviso, rojo contenido para error, sistema tipográfico, esquinas y sombras suaves).
+- **Vertical happy path implementado:** pantalla única, subida de archivo,
+  POST /transcripciones (multipart, formato=txt), indicador indeterminado con
+  copy por etapas (Subiendo / Procesando / Transcribiendo), descarga del blob
+  en 200 con nombre del Content-Disposition. Proxy Vite: /transcripciones →
+  localhost:8000. Seam de error no-200 comentado, listo para el siguiente
+  incremento (bifurcar por tipo/motivo del JSON de error).
+- **Próximos incrementos frontend:** manejo de errores por MotivoRechazo, entrada
+  por URL de YouTube, selector de formato (pdf/docx), validaciones de cliente.
+
 ## Próximo paso
-Frontend con Vue. El backend de v1 está completo y endurecido.
+Manejo de errores específicos por MotivoRechazo en el frontend (siguiente incremento).
 
 ## Pendiente (en orden)
-1. **Frontend con Vue.**
+1. **Errores específicos por motivo** en el frontend (bifurcar el JSON de error).
+2. **Entrada por URL de YouTube** en el frontend.
+3. **Selector de formato** (pdf/docx) en el frontend.
 
 ## Alcance
 - v1: herramienta anónima de un solo uso. Entradas: archivo (audio/video) y URL
@@ -143,6 +160,9 @@ Todas en docs/decisions/:
   formato_archivo.py); file.filename nunca toca la ruta. Cierre por construcción.
   Enmienda (2026-06-27): el handler importa el conjunto del dominio en vez de
   duplicar la regla; una sola fuente de verdad para las extensiones soportadas.
+- ADR-013: encuadre del frontend — monorepo (frontend/ hermano de src/) y espera
+  síncrona bloqueante sin SSE/streaming ni 202+polling. Cero cambios de backend.
+  Indicador indeterminado con copy por etapas como mitigación de UX.
 
 ## Agentes
 - agents/analyst_agent.md — escucha y estructura; no propone tecnología.
@@ -179,11 +199,14 @@ src/transcriptorpy/
 ├── url_youtube.py             — es_url_youtube() (validación pura, RN-09)
 └── validador_entrada.py       — validador agregado (RN-05/06/07)
 
+frontend/          — Vue 3 + Vite (ADR-013); package.json, vite.config.js propio
+  src/assets/      — tokens.css (design tokens) + base.css (reset)
+  src/App.vue      — pantalla única: upload, espera, descarga
 specs/             — spec formal y RN
 features/          — Gherkin (Fase 2, implícita en tests)
-docs/decisions/    — ADR-001..ADR-010
+docs/decisions/    — ADR-001..ADR-013
 agents/            — prompts base
-tests/unit/        — 99 tests, dobles en memoria, sin I/O
+tests/unit/        — 101 tests, dobles en memoria, sin I/O
 tests/integration/ — 9 tests (ffmpeg/ffprobe + OpenAI + yt-dlp); marcadores integration/network
 tests/fixtures/    — audio_es.wav (fixture de red)
 src/video_transcriber/ — spike CONGELADO (solo lectura, ADR-001)

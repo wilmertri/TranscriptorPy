@@ -1,0 +1,42 @@
+:root {
+  /* Paleta base */
+  --color-fondo: #f7f7f6;
+  --color-superficie: #ffffff;
+  --color-texto: #1a1a18;
+  --color-texto-suave: #6b6b64;
+
+  /* Acento único: teal apagado */
+  --color-acento: #2b7a87;
+  --color-acento-hover: #226470;
+  --color-acento-claro: #e8f4f6;
+
+  /* Semántica */
+  --color-aviso: #b45309;
+  --color-aviso-fondo: #fef3c7;
+  --color-error: #b91c1c;
+  --color-error-fondo: #fef2f2;
+
+  /* Bordes */
+  --color-borde: #e2e2de;
+  --color-borde-activo: var(--color-acento);
+
+  /* Tipografía */
+  --fuente: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --peso-normal: 400;
+  --peso-medio: 500;
+  --peso-negrita: 600;
+  --escala-sm: 0.875rem;
+  --escala-base: 1rem;
+  --escala-lg: 1.125rem;
+  --escala-xl: 1.625rem;
+
+  /* Forma */
+  --radio: 0.5rem;
+  --radio-lg: 0.75rem;
+
+  /* Sombra casi imperceptible */
+  --sombra: 0 1px 4px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.03);
+
+  /* Movimiento */
+  --transicion: 150ms ease;
+}
